@@ -447,6 +447,14 @@ async function translateVocab(word) {
 }
 
 function renderVocabResult(item) {
+  const srsBadge = item.is_revisit
+    ? `<div class="vocab-srs-badge" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3);">
+         🔄 <strong>Từ đã lưu trước đó:</strong> Bạn đã lưu từ này ngày ${escapeHtml(item.srs?.created_at || 'trước')} (đã tra lại ${item.srs?.revisits || 1} lần). Vì bạn đang cần xem lại, hệ thống tự động kéo từ này vào lịch ôn tập sáng mai để củng cố ngay!
+       </div>`
+    : `<div class="vocab-srs-badge">
+         📅 Đã lên lịch nhắc SM-2 (+1d, +3d, +7d, +15d, +30d) & đồng bộ Quản gia Telegram!
+       </div>`;
+
   vocabResultContainer.innerHTML = `
     <div class="vocab-result-card">
       <div class="vocab-word-head">
@@ -459,9 +467,7 @@ function renderVocabResult(item) {
       <div class="vocab-meaning">🇻🇳 ${escapeHtml(item.vietnamese || '')}</div>
       <div class="vocab-context">💡 <strong>Bối cảnh ICOIN:</strong> ${escapeHtml(item.technical_context || '')}</div>
       ${item.example_sentence ? `<div class="vocab-example">📝 "${escapeHtml(item.example_sentence)}"</div>` : ''}
-      <div class="vocab-srs-badge">
-        📅 Đã lên lịch nhắc SM-2 (+1d, +3d, +7d, +15d, +30d) & đồng bộ Quản gia Telegram!
-      </div>
+      ${srsBadge}
     </div>
   `;
 }
