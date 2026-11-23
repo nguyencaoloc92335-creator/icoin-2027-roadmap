@@ -14,14 +14,13 @@ const state = {
   deviceName: '',
   deviceUUID: '',
   isAuthenticated: false,
-  allRoadmap: (typeof DEFAULT_ROADMAP_DATA !== 'undefined') ? DEFAULT_ROADMAP_DATA : null,
-  currentDay: parseInt(localStorage.getItem('icoin_current_day') || '1', 10),
-  completedTasks: JSON.parse(localStorage.getItem('icoin_completed_tasks') || '[]'),
-  taskNotes: JSON.parse(localStorage.getItem('icoin_task_notes') || '{}'),
+  allRoadmap: null,
+  currentDay: 1,
   todayData: null,
   stats: null,
   isRecording: false,
-  recognition: null
+  recognition: null,
+  dueVocab: []
 };
 
 // DOM Elements
@@ -47,8 +46,22 @@ const shortcutModal = document.getElementById('shortcutModal');
 const closeShortcutModalBtn = document.getElementById('closeShortcutModalBtn');
 const openShortcutGuideBtn = document.getElementById('openShortcutGuideBtn');
 
+// Chat Widget Elements
+const chatBubbleBtn = document.getElementById('chatBubbleBtn');
+const chatWidgetPanel = document.getElementById('chatWidgetPanel');
+const closeChatWidgetBtn = document.getElementById('closeChatWidgetBtn');
+const tabTranslateBtn = document.getElementById('tabTranslateBtn');
+const tabDueVocabBtn = document.getElementById('tabDueVocabBtn');
+const chatTranslateView = document.getElementById('chatTranslateView');
+const chatDueVocabView = document.getElementById('chatDueVocabView');
+const vocabInput = document.getElementById('vocabInput');
+const vocabTranslateBtn = document.getElementById('vocabTranslateBtn');
+const vocabLoading = document.getElementById('vocabLoading');
+const vocabResultContainer = document.getElementById('vocabResultContainer');
+const dueVocabListContainer = document.getElementById('dueVocabListContainer');
+const dueCountBadge = document.getElementById('dueCountBadge');
+
 window.addEventListener('DOMContentLoaded', () => {
-  // Check URL query parameter ?token=...
   const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.has('token')) {
     state.token = urlParams.get('token');
@@ -117,6 +130,47 @@ function setupEventListeners() {
   nextDayBtn?.addEventListener('click', () => {
     loadDay(state.currentDay + 1);
   });
+
+  // Chat Bubble Toggle
+  chatBubbleBtn?.addEventListener('click', () => {
+    chatWidgetPanel.classList.toggle('hidden');
+    if (!chatWidgetPanel.classList.contains('hidden')) {
+      loadDueVocab();
+    }
+  });
+
+  closeChatWidgetBtn?.addEventListener('click', () => {
+    chatWidgetPanel.classList.add('hidden');
+  });
+
+  // Chat Tabs
+  tabTranslateBtn?.addEventListener('click', () => {
+    tabTranslateBtn.classList.add('active');
+    tabDueVocabBtn.classList.remove('active');
+    chatTranslateView.style.display = 'flex';
+    chatDueVocabView.style.display = 'none';
+  });
+
+  tabDueVocabBtn?.addEventListener('click', () => {
+    tabDueVocabBtn.classList.add('active');
+    tabTranslateBtn.classList.remove('active');
+    chatDueVocabView.style.display = 'flex';
+    chatTranslateView.style.display = 'none';
+    loadDueVocab();
+  });
+
+  // Vocab Translation
+  vocabTranslateBtn?.addEventListener('click', () => {
+    const w = vocabInput.value.trim();
+    if (w) translateVocab(w);
+  });
+
+  vocabInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const w = vocabInput.value.trim();
+      if (w) translateVocab(w);
+    }
+  });
 }
 
 function getHeaders() {
@@ -127,34 +181,12 @@ function getHeaders() {
   return headers;
 }
 
-function isValidTokenFormat(token) {
-  if (!token) return false;
-  const parts = token.trim().split('.');
-  return parts.length === 4 && parts[0] === 'v1' && parts[1].length === 36 && parts[2].length === 32 && parts[3].length === 64;
-}
-
 async function initAuth() {
-  // Render curriculum immediately so UI is never blank
-  renderStageScroller();
-  loadDay(state.currentDay);
-
   if (!state.token) {
     showUnauthenticated();
     return;
   }
 
-  // 1. Validate token format
-  if (!isValidTokenFormat(state.token)) {
-    showUnauthenticated('Token sai định dạng (chuẩn là: v1.uuid.auth_code.mac)');
-    return;
-  }
-
-  // Extract UUID from token
-  const parts = state.token.trim().split('.');
-  state.deviceUUID = parts[1];
-  state.deviceName = (state.deviceUUID.startsWith('c7e3a2b1')) ? 'iPhone 15' : 'Thiết bị hợp lệ';
-
-  // 2. Try online verification with C++ backend
   try {
     const res = await fetch(`${state.apiBase}/api/v1/auth/verify`, {
       headers: getHeaders()
@@ -162,19 +194,19 @@ async function initAuth() {
     if (res.ok) {
       const data = await res.json();
       state.isAuthenticated = true;
-      state.deviceName = data.device_name || state.deviceName;
-      state.deviceUUID = data.device_uuid || state.deviceUUID;
+      state.deviceName = data.device_name || 'Thiết bị hợp lệ';
+      state.deviceUUID = data.device_uuid || '';
       showAuthenticated();
-      syncWithBackend();
+      await loadInitialData();
+      loadDueVocab();
       return;
+    } else {
+      showUnauthenticated('Token không hợp lệ hoặc đã bị thu hồi');
     }
   } catch (err) {
-    console.log('Backend sync offline/mixed-content, running in Client-Authorized mode');
+    console.warn('Backend verification error:', err);
+    showUnauthenticated('Không kết nối được server Backend C++');
   }
-
-  // 3. Fallback: Token is cryptographically formatted, unlock web locally!
-  state.isAuthenticated = true;
-  showAuthenticated();
 }
 
 function showAuthenticated() {
@@ -200,11 +232,17 @@ function saveToken(token) {
   initAuth();
 }
 
-async function syncWithBackend() {
+async function loadInitialData() {
   try {
-    const res = await fetch(`${state.apiBase}/api/v1/roadmap/stats`, { headers: getHeaders() });
+    const res = await fetch(`${state.apiBase}/api/v1/roadmap/all`, { headers: getHeaders() });
     if (res.ok) {
-      state.stats = await res.json();
+      state.allRoadmap = await res.json();
+      renderStageScroller();
+    }
+
+    const statsRes = await fetch(`${state.apiBase}/api/v1/roadmap/stats`, { headers: getHeaders() });
+    if (statsRes.ok) {
+      state.stats = await statsRes.json();
       if (state.stats.current_day) {
         state.currentDay = state.stats.current_day;
       }
@@ -212,8 +250,10 @@ async function syncWithBackend() {
         streakPill.textContent = `${state.stats.streak_days} ngày`;
       }
     }
+
+    loadDay(state.currentDay);
   } catch (e) {
-    // Ignore offline errors
+    console.error('Failed to load initial data', e);
   }
 }
 
@@ -253,14 +293,26 @@ function getStageEndDay(stageId) {
   return 60;
 }
 
-function loadDay(dayNum) {
+async function loadDay(dayNum) {
   state.currentDay = dayNum;
-  localStorage.setItem('icoin_current_day', dayNum.toString());
   dayNumberBadge.textContent = `NGÀY ${dayNum}`;
 
-  if (!state.allRoadmap || !state.allRoadmap.days) return;
-  const match = state.allRoadmap.days.find(d => d.day === dayNum) || state.allRoadmap.days[0];
-  renderDayContent(match);
+  try {
+    const res = await fetch(`${state.apiBase}/api/v1/roadmap/today`, { headers: getHeaders() });
+    if (res.ok) {
+      const today = await res.json();
+      state.todayData = today;
+      renderDayContent(today);
+      return;
+    }
+  } catch (e) {
+    console.warn('API error, reading from cached roadmap', e);
+  }
+
+  if (state.allRoadmap && state.allRoadmap.days) {
+    const match = state.allRoadmap.days.find(d => d.day === dayNum) || state.allRoadmap.days[0];
+    renderDayContent(match);
+  }
 }
 
 function renderDayContent(day) {
@@ -275,16 +327,15 @@ function renderDayContent(day) {
 
   day.tasks.forEach(task => {
     const card = document.createElement('div');
-    const isDone = state.completedTasks.includes(task.id);
-    card.className = `task-card ${isDone ? 'done' : ''}`;
+    card.className = `task-card ${task.is_done ? 'done' : ''}`;
     card.id = `task-card-${task.id}`;
 
     const itemsHtml = (task.items || []).map(it => `<li>${escapeHtml(it)}</li>`).join('');
-    const existingNote = state.taskNotes[task.id] || '';
+    const existingNote = task.note ? (task.note.text || task.note) : '';
 
     card.innerHTML = `
       <div class="task-top">
-        <input type="checkbox" class="task-checkbox" ${isDone ? 'checked' : ''} data-id="${task.id}" />
+        <input type="checkbox" class="task-checkbox" ${task.is_done ? 'checked' : ''} data-id="${task.id}" />
         <div class="task-header-info">
           <div class="task-badges">
             <span class="skill-tag skill-${task.type}">${task.type}</span>
@@ -328,61 +379,192 @@ function renderDayContent(day) {
 }
 
 async function toggleTask(taskId, card, cb) {
-  const isDone = cb.checked;
-  if (isDone) {
-    if (!state.completedTasks.includes(taskId)) state.completedTasks.push(taskId);
-    card.classList.add('done');
-  } else {
-    state.completedTasks = state.completedTasks.filter(id => id !== taskId);
-    card.classList.remove('done');
-  }
-  localStorage.setItem('icoin_completed_tasks', JSON.stringify(state.completedTasks));
-
-  // Try sync with backend if online
   try {
-    await fetch(`${state.apiBase}/api/v1/roadmap/task/toggle`, {
+    const res = await fetch(`${state.apiBase}/api/v1/roadmap/task/toggle`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({ task_id: taskId })
     });
+    if (res.ok) {
+      const data = await res.json();
+      cb.checked = data.is_done;
+      if (data.is_done) card.classList.add('done');
+      else card.classList.remove('done');
+    }
   } catch (e) {
-    // Offline local save is already completed
+    console.error('Failed to toggle task', e);
   }
 }
 
 async function saveNote(taskId, note) {
   if (!note) return;
-  state.taskNotes[taskId] = note;
-  localStorage.setItem('icoin_task_notes', JSON.stringify(state.taskNotes));
-
-  // Mark task as done automatically when note submitted
-  if (!state.completedTasks.includes(taskId)) {
-    state.completedTasks.push(taskId);
-    localStorage.setItem('icoin_completed_tasks', JSON.stringify(state.completedTasks));
-    const card = document.getElementById(`task-card-${taskId}`);
-    if (card) {
-      card.classList.add('done');
-      const cb = card.querySelector('.task-checkbox');
-      if (cb) cb.checked = true;
-    }
-  }
-
-  alert('✅ Đã lưu câu trả lời kỹ thuật!');
-
-  // Try sync with backend if online
   try {
-    await fetch(`${state.apiBase}/api/v1/roadmap/task/note`, {
+    const res = await fetch(`${state.apiBase}/api/v1/roadmap/task/note`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({ task_id: taskId, note: note })
     });
+    if (res.ok) {
+      alert('✅ Đã lưu câu trả lời kỹ thuật lên máy chủ!');
+      const card = document.getElementById(`task-card-${taskId}`);
+      if (card) {
+        card.classList.add('done');
+        const cb = card.querySelector('.task-checkbox');
+        if (cb) cb.checked = true;
+      }
+    }
   } catch (e) {
-    // Offline local save is already completed
+    console.error('Error saving note', e);
   }
 }
 
+// ----------------------------------------------------
+// VOCABULARY TRANSLATION & SPACED REPETITION (SM-2)
+// ----------------------------------------------------
+async function translateVocab(word) {
+  vocabLoading.style.display = 'block';
+  vocabResultContainer.innerHTML = '';
+
+  try {
+    const res = await fetch(`${state.apiBase}/api/v1/vocab/translate`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ word: word })
+    });
+
+    vocabLoading.style.display = 'none';
+    if (res.ok) {
+      const data = await res.json();
+      renderVocabResult(data);
+      loadDueVocab();
+    } else {
+      vocabResultContainer.innerHTML = `<p style="color:#f87171; font-size:0.85rem;">Lỗi kết nối Quản gia dịch thuật.</p>`;
+    }
+  } catch (e) {
+    vocabLoading.style.display = 'none';
+    vocabResultContainer.innerHTML = `<p style="color:#f87171; font-size:0.85rem;">Không gọi được API dịch: ${e.message}</p>`;
+  }
+}
+
+function renderVocabResult(item) {
+  vocabResultContainer.innerHTML = `
+    <div class="vocab-result-card">
+      <div class="vocab-word-head">
+        <div>
+          <span class="vocab-word-title">${escapeHtml(item.word)}</span>
+          <span class="vocab-phonetic">${escapeHtml(item.phonetic || '')}</span>
+        </div>
+        <button class="btn-sm" onclick="playTTS('${escapeHtml(item.word)}')">🔊</button>
+      </div>
+      <div class="vocab-meaning">🇻🇳 ${escapeHtml(item.vietnamese || '')}</div>
+      <div class="vocab-context">💡 <strong>Bối cảnh ICOIN:</strong> ${escapeHtml(item.technical_context || '')}</div>
+      ${item.example_sentence ? `<div class="vocab-example">📝 "${escapeHtml(item.example_sentence)}"</div>` : ''}
+      <div class="vocab-srs-badge">
+        📅 Đã lên lịch nhắc SM-2 (+1d, +3d, +7d, +15d, +30d) & đồng bộ Quản gia Telegram!
+      </div>
+    </div>
+  `;
+}
+
+async function loadDueVocab() {
+  try {
+    const res = await fetch(`${state.apiBase}/api/v1/vocab/due`, {
+      headers: getHeaders()
+    });
+    if (res.ok) {
+      state.dueVocab = await res.json();
+      dueCountBadge.textContent = state.dueVocab.length;
+      renderDueVocabList();
+    }
+  } catch (e) {
+    console.error('Error loading due vocab', e);
+  }
+}
+
+function renderDueVocabList() {
+  if (!state.dueVocab || state.dueVocab.length === 0) {
+    dueVocabListContainer.innerHTML = `
+      <p style="color:#94a3b8; font-size:0.88rem; text-align:center; padding:20px 0;">
+        🎉 Không có từ vựng nào cần ôn hôm nay! Toàn bộ lịch nhắc ngắt quãng đã hoàn tất.
+      </p>
+    `;
+    return;
+  }
+
+  dueVocabListContainer.innerHTML = '';
+  state.dueVocab.forEach(item => {
+    // Pick ONE random question from the 4 styles to keep review non-repetitive and engaging
+    const questions = item.quiz_questions || [];
+    const q = questions.length > 0 
+      ? questions[Math.floor(Math.random() * questions.length)]
+      : { type: 'recall', prompt: `Nghĩa và bối cảnh kỹ thuật của từ '${item.word}' là gì?`, answer: item.vietnamese };
+
+    const box = document.createElement('div');
+    box.className = 'srs-quiz-box';
+    box.id = `srs-box-${escapeHtml(item.word)}`;
+
+    let questionContent = `<div class="srs-prompt">${escapeHtml(q.prompt)}</div>`;
+    if (q.options && q.options.length > 0) {
+      questionContent += `<div class="srs-options-list">` +
+        q.options.map(opt => `<button class="srs-opt-btn" onclick="revealAnswer('${escapeHtml(item.word)}')">${escapeHtml(opt)}</button>`).join('') +
+        `</div>`;
+    }
+
+    box.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span class="srs-badge-type">Dạng bài: ${q.type}</span>
+        <span style="font-size:0.75rem; color:#94a3b8;">Lần nhắc: #${item.srs ? item.srs.repetition + 1 : 1}</span>
+      </div>
+      ${questionContent}
+      <button class="btn-sm" id="btn-reveal-${escapeHtml(item.word)}" onclick="revealAnswer('${escapeHtml(item.word)}')">
+        👁️ Xem đáp án
+      </button>
+      <div id="answer-box-${escapeHtml(item.word)}" style="display:none;" class="srs-answer-reveal">
+        <div><strong>Đáp án:</strong> ${escapeHtml(q.answer || item.word)}</div>
+        <div style="margin-top:4px; font-size:0.8rem; color:#cbd5e1;">${escapeHtml(item.vietnamese || '')}</div>
+        <div style="margin-top:8px; font-size:0.78rem;">Đánh giá mức độ nhớ của bạn:</div>
+        <div class="srs-rating-buttons">
+          <button class="btn-rate btn-rate-hard" onclick="gradeReview('${escapeHtml(item.word)}', 1)">Khó / Quên (Nhắc lại mai)</button>
+          <button class="btn-rate btn-rate-good" onclick="gradeReview('${escapeHtml(item.word)}', 3)">Nhớ được (Tiến độ chuẩn)</button>
+          <button class="btn-rate btn-rate-easy" onclick="gradeReview('${escapeHtml(item.word)}', 5)">Rất dễ (Giãn chu kỳ)</button>
+        </div>
+      </div>
+    `;
+
+    dueVocabListContainer.appendChild(box);
+  });
+}
+
+window.revealAnswer = function(word) {
+  const box = document.getElementById(`answer-box-${word}`);
+  const btn = document.getElementById(`btn-reveal-${word}`);
+  if (box) box.style.display = 'block';
+  if (btn) btn.style.display = 'none';
+};
+
+window.gradeReview = async function(word, score) {
+  try {
+    const res = await fetch(`${state.apiBase}/api/v1/vocab/review`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ word: word, score: score })
+    });
+    if (res.ok) {
+      const box = document.getElementById(`srs-box-${word}`);
+      if (box) {
+        box.innerHTML = `<div style="color:#34d399; font-size:0.85rem; padding:8px 0;">✅ Đã cập nhật chu kỳ ôn tập tiếp theo!</div>`;
+        setTimeout(() => {
+          loadDueVocab();
+        }, 1200);
+      }
+    }
+  } catch (e) {
+    alert('Lỗi cập nhật tiến trình ôn tập.');
+  }
+};
+
 // Web Speech API: Text-to-Speech
-function playTTS(text) {
+window.playTTS = function(text) {
   if (!('speechSynthesis' in window)) {
     alert('Trình duyệt không hỗ trợ Web Speech TTS.');
     return;
@@ -392,13 +574,13 @@ function playTTS(text) {
   utterance.lang = 'en-US';
   utterance.rate = 0.95;
   window.speechSynthesis.speak(utterance);
-}
+};
 
 // Web Speech API: Speech-To-Text (Microphone)
 function toggleSpeechRecognition(taskId, micBtn) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
-    alert('Trình duyệt không hỗ trợ nhận dạng giọng nói (hỗ trợ tốt nhất trên Chrome/Safari).');
+    alert('Trình duyệt không hỗ trợ nhận dạng giọng nói.');
     return;
   }
 
