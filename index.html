@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ICOIN 2027 · Lộ trình Tiếng Anh Chuyên Ngành (AI, OWC, OCC, Firmware, IoT)</title>
-  <link rel="stylesheet" href="css/style.css?v=3.2">
+  <link rel="stylesheet" href="css/style.css?v=4.0">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
 </head>
 <body>
@@ -90,14 +90,17 @@
     </div>
     
     <div class="chat-widget-body" id="chatTranslateView">
-      <div id="vocabTargetHint" class="vocab-target-hint" style="display: none;">
-        🎯 Từ vừa chọn: <strong id="vocabTargetWordName"></strong>. Hãy gõ lại bên dưới để nhớ cách viết:
-      </div>
-      <div class="vocab-input-box">
-        <div class="vocab-ghost-container">
-          <div id="vocabGhostOverlay" class="vocab-ghost-overlay"></div>
-          <input type="text" id="vocabInput" placeholder="Nhập từ mới hoặc bấm/chọn từ bất kỳ trên web..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+      <div id="targetWordBox" class="target-word-card" style="display: none;">
+        <div class="target-word-header">
+          <span>🎯 Từ cần gõ để ghi nhớ:</span>
+          <button type="button" class="btn-fill-quick" id="btnFillQuick" title="Điền nhanh từ này">Điền nhanh ✍️</button>
         </div>
+        <div class="target-word-display" id="targetWordDisplay"></div>
+        <div class="typing-status" id="typingStatus">Hãy gõ lại từ này vào ô bên dưới để nhớ mặt chữ...</div>
+      </div>
+
+      <div class="vocab-input-box">
+        <input type="text" id="vocabInput" placeholder="Nhập từ mới hoặc bấm/chọn từ bất kỳ trên web..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
         <button id="vocabTranslateBtn" class="btn-primary">Dịch & Lưu</button>
       </div>
 
@@ -188,6 +191,6 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=3.2"></script>
+  <script src="js/app.js?v=4.0"></script>
 </body>
 </html>

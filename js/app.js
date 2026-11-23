@@ -63,9 +63,10 @@ const vocabResultContainer = document.getElementById('vocabResultContainer');
 const dueVocabListContainer = document.getElementById('dueVocabListContainer');
 const dueCountBadge = document.getElementById('dueCountBadge');
 const allCountBadge = document.getElementById('allCountBadge');
-const vocabGhostOverlay = document.getElementById('vocabGhostOverlay');
-const vocabTargetHint = document.getElementById('vocabTargetHint');
-const vocabTargetWordName = document.getElementById('vocabTargetWordName');
+const targetWordBox = document.getElementById('targetWordBox');
+const targetWordDisplay = document.getElementById('targetWordDisplay');
+const typingStatus = document.getElementById('typingStatus');
+const btnFillQuick = document.getElementById('btnFillQuick');
 const allVocabSearchInput = document.getElementById('allVocabSearchInput');
 const btnOpenAuthFromVocab = document.getElementById('btnOpenAuthFromVocab');
 
@@ -169,33 +170,57 @@ function setupEventListeners() {
     }
   });
 
-  // Ghost typing comparison
+  // Typing verification on target word
   vocabInput?.addEventListener('input', () => {
     const target = (vocabInput.dataset.targetWord || '').trim();
-    if (!vocabGhostOverlay) return;
+    if (!target || !targetWordDisplay || !typingStatus) return;
 
     const val = vocabInput.value;
-    if (!target) {
-      vocabGhostOverlay.style.display = 'none';
+    if (!val) {
+      targetWordDisplay.textContent = target;
+      typingStatus.className = 'typing-status';
+      typingStatus.textContent = 'Hãy gõ lại từ trên vào ô bên dưới để nhớ mặt chữ...';
       return;
     }
 
-    if (val.toLowerCase() === target.toLowerCase()) {
-      vocabGhostOverlay.classList.add('matched');
-      vocabGhostOverlay.textContent = '✓ ' + target;
-      vocabGhostOverlay.style.display = 'block';
-    } else if (val.length === 0) {
-      vocabGhostOverlay.classList.remove('matched');
-      vocabGhostOverlay.textContent = target;
-      vocabGhostOverlay.style.display = 'block';
-    } else {
-      vocabGhostOverlay.classList.remove('matched');
-      if (target.toLowerCase().startsWith(val.toLowerCase())) {
-        vocabGhostOverlay.textContent = target;
-        vocabGhostOverlay.style.display = 'block';
+    let matchedHtml = '';
+    let isMatchSoFar = true;
+
+    for (let i = 0; i < target.length; i++) {
+      const targetChar = target[i];
+      const typedChar = val[i];
+
+      if (typedChar === undefined) {
+        matchedHtml += `<span class="char-untyped">${escapeHtml(targetChar)}</span>`;
+      } else if (typedChar.toLowerCase() === targetChar.toLowerCase()) {
+        matchedHtml += `<span class="char-matched">${escapeHtml(targetChar)}</span>`;
       } else {
-        vocabGhostOverlay.style.display = 'none';
+        isMatchSoFar = false;
+        matchedHtml += `<span style="color:#ef4444; text-decoration:underline;">${escapeHtml(targetChar)}</span>`;
       }
+    }
+
+    targetWordDisplay.innerHTML = matchedHtml;
+
+    if (val.toLowerCase() === target.toLowerCase()) {
+      typingStatus.className = 'typing-status correct';
+      typingStatus.textContent = '✅ Rất tốt! Bạn đã gõ đúng 100%. Bấm "Dịch & Lưu" để tiếp tục!';
+    } else if (!isMatchSoFar) {
+      typingStatus.className = 'typing-status mismatch';
+      typingStatus.textContent = '⚠️ Có ký tự chưa khớp. Hãy kiểm tra lại từ mẫu ở trên!';
+    } else {
+      typingStatus.className = 'typing-status';
+      typingStatus.textContent = `Đang gõ đúng: ${val.length}/${target.length} ký tự...`;
+    }
+  });
+
+  // Quick fill button
+  btnFillQuick?.addEventListener('click', () => {
+    const target = vocabInput?.dataset.targetWord || '';
+    if (target && vocabInput) {
+      vocabInput.value = target;
+      vocabInput.dispatchEvent(new Event('input'));
+      vocabInput.focus();
     }
   });
 
@@ -220,9 +245,10 @@ function setupEventListeners() {
     authModal.classList.remove('hidden');
   });
 
-  // Document word selection and tap listener
-  document.addEventListener('mouseup', handleTextSelection);
-  document.addEventListener('touchend', handleTextSelection);
+  // Document word click, double-click, and selection listener (Supports Edge, Chrome, Safari)
+  document.addEventListener('click', handleWordClick);
+  document.addEventListener('dblclick', handleWordClick);
+  document.addEventListener('touchend', handleWordClick);
 }
 
 function showChatTab(tabName) {
@@ -248,24 +274,73 @@ function showChatTab(tabName) {
   }
 }
 
-function handleTextSelection(e) {
-  // Ignore clicks inside chat widget or modals
+// Extract word under mouse coordinates (cross-browser: Edge, Chrome, Firefox, Safari)
+function getWordAtPoint(x, y) {
+  let range;
+  if (document.caretRangeFromPoint) {
+    range = document.caretRangeFromPoint(x, y);
+  } else if (document.caretPositionFromPoint) {
+    const pos = document.caretPositionFromPoint(x, y);
+    if (pos) {
+      range = document.createRange();
+      range.setStart(pos.offsetNode, pos.offset);
+      range.collapse(true);
+    }
+  }
+  if (!range || !range.startContainer || range.startContainer.nodeType !== Node.TEXT_NODE) {
+    return '';
+  }
+  const text = range.startContainer.textContent;
+  const offset = range.startOffset;
+  if (offset > text.length) return '';
+
+  const isWordChar = (c) => /[a-zA-Z0-9_\-]/.test(c);
+  let start = offset;
+  let end = offset;
+
+  if (offset < text.length && !isWordChar(text[offset])) {
+    if (offset > 0 && isWordChar(text[offset - 1])) {
+      start = offset - 1;
+      end = offset - 1;
+    } else {
+      return '';
+    }
+  }
+
+  while (start > 0 && isWordChar(text[start - 1])) start--;
+  while (end < text.length && isWordChar(text[end])) end++;
+  return text.slice(start, end).trim();
+}
+
+function handleWordClick(e) {
+  // Ignore clicks inside chat widget, modals, form controls, buttons
   if (e && e.target && e.target.closest && (
     e.target.closest('#chatWidgetPanel') || 
     e.target.closest('#chatBubbleBtn') || 
     e.target.closest('.modal-card') ||
+    e.target.closest('button') ||
     e.target.tagName === 'INPUT' || 
-    e.target.tagName === 'TEXTAREA' ||
-    e.target.tagName === 'BUTTON'
+    e.target.tagName === 'TEXTAREA' || 
+    e.target.tagName === 'BUTTON' ||
+    e.target.tagName === 'A'
   )) {
     return;
   }
 
+  // 1. Check if user made a drag selection
   const sel = window.getSelection();
-  if (!sel || sel.isCollapsed) return;
-  const raw = sel.toString().trim();
-  if (raw && raw.length >= 2 && raw.length <= 40 && !raw.includes('\n')) {
-    setWordToPractice(raw);
+  const selectedText = sel ? sel.toString().trim() : '';
+  if (selectedText && selectedText.length >= 2 && selectedText.length <= 40 && !selectedText.includes('\n')) {
+    setWordToPractice(selectedText);
+    return;
+  }
+
+  // 2. Extract word at click position (single click or double click on Edge PC & mobile)
+  if (typeof e.clientX === 'number' && typeof e.clientY === 'number') {
+    const clickedWord = getWordAtPoint(e.clientX, e.clientY);
+    if (clickedWord && clickedWord.length >= 2 && /[a-zA-Z]/.test(clickedWord)) {
+      setWordToPractice(clickedWord);
+    }
   }
 }
 
@@ -274,7 +349,7 @@ function setWordToPractice(rawWord) {
   const cleaned = rawWord.trim().replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
   if (!cleaned || cleaned.length < 2) return;
 
-  // 1. Open chat widget
+  // 1. Open chat widget if closed
   if (chatWidgetPanel.classList.contains('hidden')) {
     chatWidgetPanel.classList.remove('hidden');
   }
@@ -282,22 +357,18 @@ function setWordToPractice(rawWord) {
   // 2. Switch to Translate tab
   showChatTab('translate');
 
-  // 3. Set ghost text and hint
-  if (vocabTargetHint && vocabTargetWordName) {
-    vocabTargetWordName.textContent = cleaned;
-    vocabTargetHint.style.display = 'block';
-  }
-
-  if (vocabGhostOverlay) {
-    vocabGhostOverlay.textContent = cleaned;
-    vocabGhostOverlay.classList.remove('matched');
-    vocabGhostOverlay.style.display = 'block';
+  // 3. Update target word display card
+  if (targetWordBox && targetWordDisplay && typingStatus) {
+    targetWordDisplay.textContent = cleaned;
+    typingStatus.className = 'typing-status';
+    typingStatus.textContent = 'Hãy gõ lại từ trên vào ô bên dưới để nhớ mặt chữ...';
+    targetWordBox.style.display = 'block';
   }
 
   if (vocabInput) {
     vocabInput.value = '';
     vocabInput.dataset.targetWord = cleaned;
-    vocabInput.placeholder = 'Gõ lại từ trên để nhớ cách viết...';
+    vocabInput.placeholder = `Gõ lại: ${cleaned}`;
     setTimeout(() => vocabInput.focus(), 150);
   }
 }
