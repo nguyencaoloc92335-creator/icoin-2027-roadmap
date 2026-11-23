@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ICOIN 2027 · Lộ trình Tiếng Anh Chuyên Ngành (AI, OWC, OCC, Firmware, IoT)</title>
-  <link rel="stylesheet" href="css/style.css?v=3.1">
+  <link rel="stylesheet" href="css/style.css?v=3.2">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
 </head>
 <body>
@@ -85,15 +85,19 @@
     </div>
     <div class="chat-tabs">
       <button class="chat-tab-btn active" id="tabTranslateBtn">Tra từ mới</button>
-      <button class="chat-tab-btn" id="tabDueVocabBtn">Ôn tập hôm nay (<span id="dueCountBadge">0</span>)</button>
+      <button class="chat-tab-btn" id="tabDueVocabBtn">Ôn tập (<span id="dueCountBadge">0</span>)</button>
+      <button class="chat-tab-btn" id="tabAllVocabBtn">Sổ từ đã lưu (<span id="allCountBadge">0</span>) 🔒</button>
     </div>
     
     <div class="chat-widget-body" id="chatTranslateView">
-      <p style="font-size: 0.82rem; color: #94a3b8;">
-        Gặp từ hoặc thuật ngữ kỹ thuật chưa hiểu? Nhập vào đây để Quản gia giải nghĩa chuẩn hội thảo ICOIN và lên lịch ôn tập SM-2:
-      </p>
+      <div id="vocabTargetHint" class="vocab-target-hint" style="display: none;">
+        🎯 Từ vừa chọn: <strong id="vocabTargetWordName"></strong>. Hãy gõ lại bên dưới để nhớ cách viết:
+      </div>
       <div class="vocab-input-box">
-        <input type="text" id="vocabInput" placeholder="Nhập từ mới (vd: attenuation, rolling shutter...)" />
+        <div class="vocab-ghost-container">
+          <div id="vocabGhostOverlay" class="vocab-ghost-overlay"></div>
+          <input type="text" id="vocabInput" placeholder="Nhập từ mới hoặc bấm/chọn từ bất kỳ trên web..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+        </div>
         <button id="vocabTranslateBtn" class="btn-primary">Dịch & Lưu</button>
       </div>
 
@@ -108,10 +112,30 @@
 
     <div class="chat-widget-body" id="chatDueVocabView" style="display: none;">
       <p style="font-size: 0.82rem; color: #94a3b8;">
-        Các thuật ngữ đến hạn ôn tập hôm nay theo đường cong lãng quên Ebbinghaus. Câu hỏi được xáo ngẫu nhiên để chống nhàm chán:
+        Các thuật ngữ đến hạn ôn tập hôm nay theo đường cong lãng quên Ebbinghaus. Đọc phát âm đạt ≥ 80% để cho qua:
       </p>
       <div id="dueVocabListContainer" style="display: flex; flex-direction: column; gap: 12px;">
         <!-- Rendered SRS quizzes -->
+      </div>
+    </div>
+
+    <div class="chat-widget-body" id="chatAllVocabView" style="display: none;">
+      <div id="allVocabAuthLock" class="auth-locked-box" style="display: none;">
+        <div style="font-size: 1.8rem; margin-bottom: 6px;">🔒</div>
+        <h4 style="color: #f1f5f9; margin-bottom: 6px;">Cần Xác thực Thiết bị</h4>
+        <p style="font-size: 0.82rem; color: #94a3b8; line-height: 1.4; margin-bottom: 12px;">
+          Sổ từ vựng cá nhân được bảo vệ nghiêm ngặt bằng khoá HMAC-SHA256. Vui lòng xác thực để truy cập.
+        </p>
+        <button class="btn-primary" id="btnOpenAuthFromVocab">🔐 Nhập mã xác thực</button>
+      </div>
+
+      <div id="allVocabContent" style="display: none;">
+        <div style="margin-bottom: 10px;">
+          <input type="text" id="allVocabSearchInput" placeholder="🔍 Tìm nhanh từ đã lưu (tiếng Anh hoặc nghĩa Việt)..." style="width: 100%; box-sizing: border-box; background: #0f172a; border: 1px solid var(--border-color); color: #fff; padding: 8px 10px; border-radius: 6px; font-size: 0.82rem;" />
+        </div>
+        <div id="allVocabListContainer" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto;">
+          <!-- Rendered saved word cards -->
+        </div>
       </div>
     </div>
   </div>
@@ -164,6 +188,6 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=3.1"></script>
+  <script src="js/app.js?v=3.2"></script>
 </body>
 </html>

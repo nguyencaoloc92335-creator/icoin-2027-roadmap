@@ -52,14 +52,22 @@ const chatWidgetPanel = document.getElementById('chatWidgetPanel');
 const closeChatWidgetBtn = document.getElementById('closeChatWidgetBtn');
 const tabTranslateBtn = document.getElementById('tabTranslateBtn');
 const tabDueVocabBtn = document.getElementById('tabDueVocabBtn');
+const tabAllVocabBtn = document.getElementById('tabAllVocabBtn');
 const chatTranslateView = document.getElementById('chatTranslateView');
 const chatDueVocabView = document.getElementById('chatDueVocabView');
+const chatAllVocabView = document.getElementById('chatAllVocabView');
 const vocabInput = document.getElementById('vocabInput');
 const vocabTranslateBtn = document.getElementById('vocabTranslateBtn');
 const vocabLoading = document.getElementById('vocabLoading');
 const vocabResultContainer = document.getElementById('vocabResultContainer');
 const dueVocabListContainer = document.getElementById('dueVocabListContainer');
 const dueCountBadge = document.getElementById('dueCountBadge');
+const allCountBadge = document.getElementById('allCountBadge');
+const vocabGhostOverlay = document.getElementById('vocabGhostOverlay');
+const vocabTargetHint = document.getElementById('vocabTargetHint');
+const vocabTargetWordName = document.getElementById('vocabTargetWordName');
+const allVocabSearchInput = document.getElementById('allVocabSearchInput');
+const btnOpenAuthFromVocab = document.getElementById('btnOpenAuthFromVocab');
 
 window.addEventListener('DOMContentLoaded', () => {
   const urlParams = new URLSearchParams(window.location.search);
@@ -144,20 +152,9 @@ function setupEventListeners() {
   });
 
   // Chat Tabs
-  tabTranslateBtn?.addEventListener('click', () => {
-    tabTranslateBtn.classList.add('active');
-    tabDueVocabBtn.classList.remove('active');
-    chatTranslateView.style.display = 'flex';
-    chatDueVocabView.style.display = 'none';
-  });
-
-  tabDueVocabBtn?.addEventListener('click', () => {
-    tabDueVocabBtn.classList.add('active');
-    tabTranslateBtn.classList.remove('active');
-    chatDueVocabView.style.display = 'flex';
-    chatTranslateView.style.display = 'none';
-    loadDueVocab();
-  });
+  tabTranslateBtn?.addEventListener('click', () => showChatTab('translate'));
+  tabDueVocabBtn?.addEventListener('click', () => showChatTab('due'));
+  tabAllVocabBtn?.addEventListener('click', () => showChatTab('all'));
 
   // Vocab Translation
   vocabTranslateBtn?.addEventListener('click', () => {
@@ -171,6 +168,138 @@ function setupEventListeners() {
       if (w) translateVocab(w);
     }
   });
+
+  // Ghost typing comparison
+  vocabInput?.addEventListener('input', () => {
+    const target = (vocabInput.dataset.targetWord || '').trim();
+    if (!vocabGhostOverlay) return;
+
+    const val = vocabInput.value;
+    if (!target) {
+      vocabGhostOverlay.style.display = 'none';
+      return;
+    }
+
+    if (val.toLowerCase() === target.toLowerCase()) {
+      vocabGhostOverlay.classList.add('matched');
+      vocabGhostOverlay.textContent = '✓ ' + target;
+      vocabGhostOverlay.style.display = 'block';
+    } else if (val.length === 0) {
+      vocabGhostOverlay.classList.remove('matched');
+      vocabGhostOverlay.textContent = target;
+      vocabGhostOverlay.style.display = 'block';
+    } else {
+      vocabGhostOverlay.classList.remove('matched');
+      if (target.toLowerCase().startsWith(val.toLowerCase())) {
+        vocabGhostOverlay.textContent = target;
+        vocabGhostOverlay.style.display = 'block';
+      } else {
+        vocabGhostOverlay.style.display = 'none';
+      }
+    }
+  });
+
+  // Real-time search in all saved vocab
+  allVocabSearchInput?.addEventListener('input', () => {
+    const q = allVocabSearchInput.value.toLowerCase().trim();
+    if (!state.allVocab) return;
+    if (!q) {
+      renderAllVocabList(state.allVocab);
+      return;
+    }
+    const filtered = state.allVocab.filter(item => {
+      const w = (item.word || '').toLowerCase();
+      const v = (item.vietnamese || '').toLowerCase();
+      const c = (item.technical_context || '').toLowerCase();
+      return w.includes(q) || v.includes(q) || c.includes(q);
+    });
+    renderAllVocabList(filtered);
+  });
+
+  btnOpenAuthFromVocab?.addEventListener('click', () => {
+    authModal.classList.remove('hidden');
+  });
+
+  // Document word selection and tap listener
+  document.addEventListener('mouseup', handleTextSelection);
+  document.addEventListener('touchend', handleTextSelection);
+}
+
+function showChatTab(tabName) {
+  tabTranslateBtn?.classList.remove('active');
+  tabDueVocabBtn?.classList.remove('active');
+  tabAllVocabBtn?.classList.remove('active');
+
+  chatTranslateView.style.display = 'none';
+  chatDueVocabView.style.display = 'none';
+  chatAllVocabView.style.display = 'none';
+
+  if (tabName === 'translate') {
+    tabTranslateBtn?.classList.add('active');
+    chatTranslateView.style.display = 'flex';
+  } else if (tabName === 'due') {
+    tabDueVocabBtn?.classList.add('active');
+    chatDueVocabView.style.display = 'flex';
+    loadDueVocab();
+  } else if (tabName === 'all') {
+    tabAllVocabBtn?.classList.add('active');
+    chatAllVocabView.style.display = 'flex';
+    loadAllStoredVocab();
+  }
+}
+
+function handleTextSelection(e) {
+  // Ignore clicks inside chat widget or modals
+  if (e && e.target && e.target.closest && (
+    e.target.closest('#chatWidgetPanel') || 
+    e.target.closest('#chatBubbleBtn') || 
+    e.target.closest('.modal-card') ||
+    e.target.tagName === 'INPUT' || 
+    e.target.tagName === 'TEXTAREA' ||
+    e.target.tagName === 'BUTTON'
+  )) {
+    return;
+  }
+
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed) return;
+  const raw = sel.toString().trim();
+  if (raw && raw.length >= 2 && raw.length <= 40 && !raw.includes('\n')) {
+    setWordToPractice(raw);
+  }
+}
+
+function setWordToPractice(rawWord) {
+  if (!rawWord) return;
+  const cleaned = rawWord.trim().replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
+  if (!cleaned || cleaned.length < 2) return;
+
+  // 1. Open chat widget
+  if (chatWidgetPanel.classList.contains('hidden')) {
+    chatWidgetPanel.classList.remove('hidden');
+  }
+
+  // 2. Switch to Translate tab
+  showChatTab('translate');
+
+  // 3. Set ghost text and hint
+  if (vocabTargetHint && vocabTargetWordName) {
+    vocabTargetWordName.textContent = cleaned;
+    vocabTargetHint.style.display = 'block';
+  }
+
+  if (vocabGhostOverlay) {
+    vocabGhostOverlay.textContent = cleaned;
+    vocabGhostOverlay.classList.remove('matched');
+    vocabGhostOverlay.style.display = 'block';
+  }
+
+  if (vocabInput) {
+    vocabInput.value = '';
+    vocabInput.dataset.targetWord = cleaned;
+    vocabInput.placeholder = 'Gõ lại từ trên để nhớ cách viết...';
+    setTimeout(() => vocabInput.focus(), 150);
+  }
 }
 
 function getHeaders() {
@@ -688,18 +817,37 @@ function renderVocabResult(item) {
          📅 Đã lên lịch nhắc SM-2 (+1d, +3d, +7d, +15d, +30d) & đồng bộ Quản gia Telegram!
        </div>`;
 
+  const wordJsSafe = item.word.replace(/'/g, "\\'");
+  const safeId = item.word.toLowerCase().replace(/[^a-z0-9]/g, '_');
+
   vocabResultContainer.innerHTML = `
     <div class="vocab-result-card">
       <div class="vocab-word-head">
         <div>
           <span class="vocab-word-title">${escapeHtml(item.word)}</span>
           <span class="vocab-phonetic">${escapeHtml(item.phonetic || '')}</span>
+          ${item.part_of_speech ? `<span class="badge" style="font-size:0.7rem; background:#0f172a; color:#38bdf8; margin-left:6px;">${escapeHtml(item.part_of_speech)}</span>` : ''}
         </div>
-        <button class="btn-sm" onclick="playTTS('${escapeHtml(item.word)}')">🔊</button>
+        <button class="btn-sm" onclick="playTTS('${wordJsSafe}')">🔊 Nghe</button>
       </div>
       <div class="vocab-meaning">🇻🇳 ${escapeHtml(item.vietnamese || '')}</div>
       <div class="vocab-context">💡 <strong>Bối cảnh ICOIN:</strong> ${escapeHtml(item.technical_context || '')}</div>
       ${item.example_sentence ? `<div class="vocab-example">📝 "${escapeHtml(item.example_sentence)}"</div>` : ''}
+      
+      <!-- Speech Pronunciation Test (>= 80% Threshold) -->
+      <div class="speech-test-card">
+        <div class="speech-test-title">
+          🎙️ Kiểm tra Phát âm (AI Chấm điểm ≥ 80% để cho qua):
+        </div>
+        <div class="speech-test-actions">
+          <button class="btn-sm" onclick="playTTS('${wordJsSafe}')">🔊 Nghe mẫu</button>
+          <button class="btn-record-word" id="btn-speech-${safeId}" onclick="window.testWordPronunciation('${wordJsSafe}', 'btn-speech-${safeId}', 'speech-res-${safeId}')">
+            🎙️ Bấm để đọc từ này
+          </button>
+        </div>
+        <div id="speech-res-${safeId}"></div>
+      </div>
+
       ${srsBadge}
     </div>
   `;
@@ -712,7 +860,7 @@ async function loadDueVocab() {
     });
     if (res.ok) {
       state.dueVocab = await res.json();
-      dueCountBadge.textContent = state.dueVocab.length;
+      if (dueCountBadge) dueCountBadge.textContent = state.dueVocab.length;
       renderDueVocabList();
     }
   } catch (e) {
@@ -738,14 +886,18 @@ function renderDueVocabList() {
       ? questions[Math.floor(Math.random() * questions.length)]
       : { type: 'recall', prompt: `Nghĩa và bối cảnh kỹ thuật của từ '${item.word}' là gì?`, answer: item.vietnamese };
 
+    const wordJsSafe = item.word.replace(/'/g, "\\'");
+    const safeWord = escapeHtml(item.word);
+    const safeId = item.word.toLowerCase().replace(/[^a-z0-9]/g, '_');
+
     const box = document.createElement('div');
     box.className = 'srs-quiz-box';
-    box.id = `srs-box-${escapeHtml(item.word)}`;
+    box.id = `srs-box-${safeWord}`;
 
     let questionContent = `<div class="srs-prompt">${escapeHtml(q.prompt)}</div>`;
     if (q.options && q.options.length > 0) {
       questionContent += `<div class="srs-options-list">` +
-        q.options.map(opt => `<button class="srs-opt-btn" onclick="revealAnswer('${escapeHtml(item.word)}')">${escapeHtml(opt)}</button>`).join('') +
+        q.options.map(opt => `<button class="srs-opt-btn" onclick="revealAnswer('${safeWord}')">${escapeHtml(opt)}</button>`).join('') +
         `</div>`;
     }
 
@@ -755,17 +907,34 @@ function renderDueVocabList() {
         <span style="font-size:0.75rem; color:#94a3b8;">Lần nhắc: #${item.srs ? item.srs.repetition + 1 : 1}</span>
       </div>
       ${questionContent}
-      <button class="btn-sm" id="btn-reveal-${escapeHtml(item.word)}" onclick="revealAnswer('${escapeHtml(item.word)}')">
+      
+      <!-- Speech Pronunciation Test in Review (>= 80% to pass) -->
+      <div class="speech-test-card" style="margin-top: 8px;">
+        <div class="speech-test-title">
+          🗣️ Đọc to từ vựng tiếng Anh (Cần đạt ≥ 80% để cho qua):
+        </div>
+        <div class="speech-test-actions">
+          <button class="btn-sm" onclick="playTTS('${wordJsSafe}')">🔊 Nghe mẫu</button>
+          <button class="btn-record-word" id="btn-due-speech-${safeId}" onclick="window.testWordPronunciation('${wordJsSafe}', 'btn-due-speech-${safeId}', 'due-speech-res-${safeId}', (score) => {
+            setTimeout(() => gradeReview('${wordJsSafe}', 5), 1200);
+          })">
+            🎙️ Phát âm để kiểm tra
+          </button>
+        </div>
+        <div id="due-speech-res-${safeId}"></div>
+      </div>
+
+      <button class="btn-sm" id="btn-reveal-${safeWord}" onclick="revealAnswer('${safeWord}')">
         👁️ Xem đáp án
       </button>
-      <div id="answer-box-${escapeHtml(item.word)}" style="display:none;" class="srs-answer-reveal">
+      <div id="answer-box-${safeWord}" style="display:none;" class="srs-answer-reveal">
         <div><strong>Đáp án:</strong> ${escapeHtml(q.answer || item.word)}</div>
         <div style="margin-top:4px; font-size:0.8rem; color:#cbd5e1;">${escapeHtml(item.vietnamese || '')}</div>
         <div style="margin-top:8px; font-size:0.78rem;">Đánh giá mức độ nhớ của bạn:</div>
         <div class="srs-rating-buttons">
-          <button class="btn-rate btn-rate-hard" onclick="gradeReview('${escapeHtml(item.word)}', 1)">Khó / Quên (Nhắc lại mai)</button>
-          <button class="btn-rate btn-rate-good" onclick="gradeReview('${escapeHtml(item.word)}', 3)">Nhớ được (Tiến độ chuẩn)</button>
-          <button class="btn-rate btn-rate-easy" onclick="gradeReview('${escapeHtml(item.word)}', 5)">Rất dễ (Giãn chu kỳ)</button>
+          <button class="btn-rate btn-rate-hard" onclick="gradeReview('${wordJsSafe}', 1)">Khó / Quên (Nhắc lại mai)</button>
+          <button class="btn-rate btn-rate-good" onclick="gradeReview('${wordJsSafe}', 3)">Nhớ được (Tiến độ chuẩn)</button>
+          <button class="btn-rate btn-rate-easy" onclick="gradeReview('${wordJsSafe}', 5)">Rất dễ (Giãn chu kỳ)</button>
         </div>
       </div>
     `;
@@ -773,6 +942,185 @@ function renderDueVocabList() {
     dueVocabListContainer.appendChild(box);
   });
 }
+
+// ----------------------------------------------------
+// TAB 3: ALL STORED VOCABULARY NOTEBOOK (AUTHENTICATED)
+// ----------------------------------------------------
+async function loadAllStoredVocab() {
+  const authLock = document.getElementById('allVocabAuthLock');
+  const content = document.getElementById('allVocabContent');
+  const container = document.getElementById('allVocabListContainer');
+
+  if (!state.isAuthenticated) {
+    if (authLock) authLock.style.display = 'block';
+    if (content) content.style.display = 'none';
+    return;
+  }
+
+  if (authLock) authLock.style.display = 'none';
+  if (content) content.style.display = 'block';
+  if (container) container.innerHTML = `<p style="color:#94a3b8; font-size:0.85rem; text-align:center;">⏳ Đang tải danh sách từ vựng cá nhân...</p>`;
+
+  try {
+    const res = await fetch(`${state.apiBase}/api/v1/vocab/all`, {
+      headers: getHeaders()
+    });
+    if (res.ok) {
+      state.allVocab = await res.json();
+      if (allCountBadge) allCountBadge.textContent = state.allVocab.length;
+      renderAllVocabList(state.allVocab);
+    } else {
+      if (container) container.innerHTML = `<p style="color:#f87171; font-size:0.85rem;">Không tải được danh sách từ (${res.status}).</p>`;
+    }
+  } catch (e) {
+    if (container) container.innerHTML = `<p style="color:#f87171; font-size:0.85rem;">Lỗi kết nối: ${e.message}</p>`;
+  }
+}
+
+function renderAllVocabList(vocabArray) {
+  const container = document.getElementById('allVocabListContainer');
+  if (!container) return;
+
+  if (!vocabArray || vocabArray.length === 0) {
+    container.innerHTML = `<p style="color:#94a3b8; font-size:0.85rem; text-align:center; padding:20px 0;">Sổ từ vựng đang trống. Hãy tra và lưu các từ mới!</p>`;
+    return;
+  }
+
+  container.innerHTML = '';
+  vocabArray.forEach((item, index) => {
+    const card = document.createElement('div');
+    card.className = 'all-vocab-item-card';
+    const wordJsSafe = item.word.replace(/'/g, "\\'");
+    const srs = item.srs || {};
+    const safeWord = escapeHtml(item.word);
+    const cardId = `all-card-${index}`;
+
+    card.innerHTML = `
+      <div class="all-vocab-head">
+        <div>
+          <span class="all-vocab-word">${safeWord}</span>
+          <span class="all-vocab-phonetic">${escapeHtml(item.phonetic || '')}</span>
+          ${item.part_of_speech ? `<span class="badge" style="font-size:0.7rem; background:#0f172a; color:#38bdf8; margin-left:4px;">${escapeHtml(item.part_of_speech)}</span>` : ''}
+        </div>
+        <button class="btn-sm" onclick="playTTS('${wordJsSafe}')">🔊 Nghe</button>
+      </div>
+      <div class="all-vocab-meaning">🇻🇳 ${escapeHtml(item.vietnamese || '')}</div>
+      ${item.technical_context ? `<div style="font-size:0.78rem; color:#94a3b8; line-height:1.4;">💡 ${escapeHtml(item.technical_context)}</div>` : ''}
+      
+      <div class="speech-test-card" style="margin-top:6px; padding:6px 10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:0.75rem; color:#f1f5f9; font-weight:600;">🎙️ Luyện đọc (≥ 80%):</span>
+          <button class="btn-record-word" style="padding:3px 8px; font-size:0.72rem;" id="btn-all-speech-${index}" onclick="window.testWordPronunciation('${wordJsSafe}', 'btn-all-speech-${index}', 'all-speech-res-${index}')">
+            🎙️ Đọc kiểm tra
+          </button>
+        </div>
+        <div id="all-speech-res-${index}"></div>
+      </div>
+
+      <div class="all-vocab-meta">
+        <span>📅 Ôn tiếp: <strong>${escapeHtml(srs.next_review || 'Chưa có')}</strong> (Cách ${srs.interval_days || 1}d)</span>
+        <span>${srs.revisits ? `🔄 Đã tra lại: ${srs.revisits} lần` : `Lần ôn: #${srs.repetition || 0}`}</span>
+      </div>
+    `;
+
+    container.appendChild(card);
+  });
+}
+
+// ----------------------------------------------------
+// PRONUNCIATION GRADING (>= 80% THRESHOLD TO PASS)
+// ----------------------------------------------------
+function calculatePronunciationScore(spoken, target) {
+  if (!spoken || !target) return 0;
+  const s = spoken.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  const t = target.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (s === t) return 100;
+  if (!s || !t) return 0;
+
+  // Levenshtein distance calculation
+  const track = Array(t.length + 1).fill(null).map(() =>
+    Array(s.length + 1).fill(null));
+  for (let i = 0; i <= t.length; i += 1) track[i][0] = i;
+  for (let j = 0; j <= s.length; j += 1) track[0][j] = j;
+  for (let i = 1; i <= t.length; i += 1) {
+    for (let j = 1; j <= s.length; j += 1) {
+      const indicator = t[i - 1] === s[j - 1] ? 0 : 1;
+      track[i][j] = Math.min(
+        track[i - 1][j] + 1,
+        track[i][j - 1] + 1,
+        track[i - 1][j - 1] + indicator
+      );
+    }
+  }
+  const distance = track[t.length][s.length];
+  const maxLen = Math.max(t.length, s.length);
+  const similarity = Math.max(0, 1 - (distance / maxLen));
+  return Math.round(similarity * 100);
+}
+
+window.testWordPronunciation = function(targetWord, btnId, resultId, onPassCallback) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const btn = document.getElementById(btnId);
+  const resultEl = document.getElementById(resultId);
+
+  if (!SpeechRecognition) {
+    if (resultEl) {
+      resultEl.innerHTML = `<span style="color:#fbbf24; font-size:0.78rem;">Trình duyệt không hỗ trợ Mic. Tạm tính đạt chuẩn: 100%</span>`;
+      if (onPassCallback) onPassCallback(100);
+    }
+    return;
+  }
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = 'en-US';
+  recognition.interimResults = false;
+
+  if (btn) {
+    btn.classList.add('recording');
+    btn.textContent = '🔴 Đang nghe... Hãy đọc to!';
+  }
+
+  recognition.onresult = (event) => {
+    const spoken = event.results[0][0].transcript;
+    const score = calculatePronunciationScore(spoken, targetWord);
+    const isPass = score >= 80;
+
+    if (btn) {
+      btn.classList.remove('recording');
+      btn.textContent = '🎙️ Đọc lại từ này';
+    }
+
+    if (resultEl) {
+      resultEl.innerHTML = `
+        <div class="speech-score-badge ${isPass ? 'pass' : 'fail'}">
+          ${isPass ? '🟢 Đạt chuẩn' : '🔴 Chưa đạt'}: ${score}% (Cần ≥ 80%)
+        </div>
+        <div class="speech-feedback-text">
+          ${isPass 
+            ? `🎉 Tuyệt vời! Bạn đã phát âm chính xác từ "<strong>${escapeHtml(targetWord)}</strong>". Đã cho qua!` 
+            : `Bạn đã đọc thành: "<em>${escapeHtml(spoken)}</em>" (Từ chuẩn: "<strong>${escapeHtml(targetWord)}</strong>"). Hãy nghe lại mẫu và thử lại!`
+          }
+        </div>
+      `;
+    }
+
+    if (isPass && onPassCallback) {
+      onPassCallback(score);
+    }
+  };
+
+  recognition.onerror = (e) => {
+    if (btn) {
+      btn.classList.remove('recording');
+      btn.textContent = '🎙️ Thử lại';
+    }
+    if (resultEl) {
+      resultEl.innerHTML = `<span style="color:#f87171; font-size:0.78rem;">Lỗi mic: ${e.error}. Hãy cho phép quyền micro trên trình duyệt.</span>`;
+    }
+  };
+
+  recognition.start();
+};
 
 window.revealAnswer = function(word) {
   const box = document.getElementById(`answer-box-${word}`);
