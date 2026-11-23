@@ -315,6 +315,136 @@ async function loadDay(dayNum) {
   }
 }
 
+function renderMaterialHtml(task) {
+  const m = task.material;
+  if (!m) return '';
+
+  let body = '';
+  if (task.type === 'listening') {
+    const audioText = m.audio_text || '';
+    const kwHtml = (m.keywords || []).map(k => `
+      <div class="keyword-pill"><strong>${escapeHtml(k.term)}:</strong> ${escapeHtml(k.definition)}</div>
+    `).join('');
+
+    body = `
+      <div class="material-title-bar">
+        <span class="material-title">🎧 Kịch bản âm thanh kỹ thuật (Audio Transcript)</span>
+        <button class="btn-sm" onclick="playTTS('${escapeHtml(audioText.replace(/'/g, "\\'"))}')">▶️ Nghe toàn bộ đoạn (TTS)</button>
+      </div>
+      <div class="material-passage">${escapeHtml(audioText)}</div>
+      ${kwHtml ? `<div style="font-size:0.78rem; color:#94a3b8; margin-top:6px;">🔑 Từ khóa trọng tâm:</div><div class="material-keywords-list">${kwHtml}</div>` : ''}
+      ${m.question ? `<div style="margin-top:8px; font-weight:600; color:#e2e8f0;">❓ Câu hỏi trọng tâm: <span style="color:#38bdf8;">${escapeHtml(m.question)}</span></div>` : ''}
+    `;
+  } else if (task.type === 'speaking') {
+    const sentences = (m.sample_sentences || []).map((s) => `
+      <div class="speaking-sentence-card">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div class="speaking-en">"${escapeHtml(s.en)}"</div>
+          <button class="btn-sm" style="padding:2px 8px; font-size:0.75rem;" onclick="playTTS('${escapeHtml(s.en.replace(/'/g, "\\'"))}')">🔊 Nghe</button>
+        </div>
+        <div class="speaking-ipa">${escapeHtml(s.ipa || '')}</div>
+        <div class="speaking-vi">🇻🇳 ${escapeHtml(s.vi || '')}</div>
+      </div>
+    `).join('');
+
+    body = `
+      <div class="material-title-bar">
+        <span class="material-title">🗣️ Mẫu câu giao tiếp & Shadowing chuyên ngành</span>
+      </div>
+      ${sentences}
+      ${m.intonation_tips ? `<div style="font-size:0.78rem; color:#fbbf24; margin-top:6px;">💡 Lưu ý ngữ điệu: ${escapeHtml(m.intonation_tips)}</div>` : ''}
+    `;
+  } else if (task.type === 'reading') {
+    const title = m.datasheet_title || 'Trích đoạn tài liệu kỹ thuật STM32';
+    const passage = m.passage || '';
+    const vocabList = (m.vocabulary_highlights || []).map(v => `
+      <div class="keyword-pill"><strong>${escapeHtml(v.term)}:</strong> ${escapeHtml(v.meaning)}</div>
+    `).join('');
+
+    body = `
+      <div class="material-title-bar">
+        <span class="material-title">📖 ${escapeHtml(title)}</span>
+      </div>
+      <div class="material-passage">${escapeHtml(passage)}</div>
+      ${vocabList ? `<div style="font-size:0.78rem; color:#94a3b8; margin-top:6px;">🔍 Thuật ngữ then chốt:</div><div class="material-keywords-list">${vocabList}</div>` : ''}
+      ${m.question ? `<div style="margin-top:8px; font-weight:600; color:#e2e8f0;">❓ Yêu cầu đọc hiểu: <span style="color:#38bdf8;">${escapeHtml(m.question)}</span></div>` : ''}
+    `;
+  } else if (task.type === 'writing') {
+    const prompt = m.writing_prompt || '';
+    const args = (m.suggested_arguments || []).map(a => `<li>${escapeHtml(a)}</li>`).join('');
+    const vocabs = (m.academic_vocabulary || []).map(v => `<span class="badge" style="background:#1e293b; color:#38bdf8; margin-right:4px;">${escapeHtml(v)}</span>`).join('');
+
+    body = `
+      <div class="material-title-bar">
+        <span class="material-title">✍️ Đề bài & Hướng dẫn Viết chuẩn Hội thảo IEEE / ICOIN</span>
+      </div>
+      <div style="font-weight:600; color:#f1f5f9; margin-bottom:6px;">${escapeHtml(prompt)}</div>
+      ${args ? `<div style="font-size:0.8rem; color:#94a3b8;">💡 Gợi ý luận điểm kỹ thuật:</div><ul style="margin:4px 0 8px 16px; font-size:0.82rem; color:#cbd5e1;">${args}</ul>` : ''}
+      ${vocabs ? `<div style="font-size:0.78rem; color:#94a3b8;">📚 Từ vựng học thuật nên dùng: ${vocabs}</div>` : ''}
+    `;
+  }
+
+  return `<div class="task-material-box">${body}</div>`;
+}
+
+function renderSolutionBox(task, solutionData) {
+  const sol = solutionData || task.solution;
+  if (!sol || (!sol.answer && !sol.detailed_explanation)) return '';
+
+  const takeaways = (sol.key_takeaways || []).map(t => `<li class="solution-takeaway-item">${escapeHtml(t)}</li>`).join('');
+
+  return `
+    <div class="solution-details-box" id="solution-content-${task.id}">
+      <h5>🎯 Đáp án & Lời giải mẫu chuẩn kỹ thuật:</h5>
+      <div style="color:#38bdf8; font-weight:500; margin-bottom:8px;">${escapeHtml(sol.answer || '')}</div>
+      ${sol.detailed_explanation ? `<div style="font-size:0.82rem; color:#cbd5e1; line-height:1.45; margin-bottom:8px;">${escapeHtml(sol.detailed_explanation)}</div>` : ''}
+      ${takeaways ? `<div style="font-size:0.8rem; color:#fbbf24; font-weight:600;">📌 Điểm cốt lõi cần ghi nhớ:</div><ul style="margin:4px 0 0 0; padding-left:16px;">${takeaways}</ul>` : ''}
+    </div>
+  `;
+}
+
+function renderEvaluationHtml(evalRes, task) {
+  if (!evalRes) return '';
+  const status = evalRes.status;
+  let badgeClass = 'incorrect';
+  let badgeText = 'Chưa đạt yêu cầu';
+  if (status === 'CORRECT') {
+    badgeClass = 'correct';
+    badgeText = `🟢 Chính xác (${evalRes.score || 100}/100)`;
+  } else if (status === 'NEAR_CORRECT') {
+    badgeClass = 'near';
+    badgeText = `🟡 Gần đúng - Có nỗ lực suy nghĩ (${evalRes.score || 70}/100)`;
+  } else {
+    badgeClass = 'incorrect';
+    badgeText = `🔴 Chưa đạt (${evalRes.score || 0}/100)`;
+  }
+
+  const isUnlocked = evalRes.can_unlock_solution || task.is_solution_unlocked;
+  const solData = evalRes.solution || task.solution;
+
+  const unlockBtn = isUnlocked
+    ? `<div class="solution-container" id="solution-container-${task.id}">
+         <button class="btn-toggle-solution" onclick="window.toggleSolutionBox(${task.id})">
+           🔓 Xem AI Giải & Làm Mẫu Chi Tiết
+         </button>
+         <div id="solution-wrapper-${task.id}" style="display:none; margin-top:6px;">
+           ${renderSolutionBox(task, solData)}
+         </div>
+       </div>`
+    : `<div style="font-size:0.78rem; color:#94a3b8; margin-top:6px; font-style:italic;">
+         🔒 Lời giải mẫu chỉ tự động mở khóa khi bạn đọc tài liệu và nỗ lực trả lời gần đúng (AI sẽ đánh giá tính chân thật).
+       </div>`;
+
+  return `
+    <div class="ai-eval-result ${badgeClass}">
+      <div class="eval-badge ${badgeClass}">${badgeText}</div>
+      <div class="eval-feedback">${escapeHtml(evalRes.feedback || '')}</div>
+      ${evalRes.improved_english ? `<div class="eval-improved-english">📝 <strong>Gợi ý câu chuẩn IEEE:</strong> "${escapeHtml(evalRes.improved_english)}"</div>` : ''}
+      ${unlockBtn}
+    </div>
+  `;
+}
+
 function renderDayContent(day) {
   themeTitle.textContent = day.theme || 'Chủ đề chuyên ngành';
   themeDesc.textContent = `Bài học chi tiết gồm các nhiệm vụ rải rác 10-15 phút: Nghe, Nói (Shadowing), Đọc hiểu tài liệu và Viết tóm tắt kỹ thuật.`;
@@ -325,6 +455,8 @@ function renderDayContent(day) {
     return;
   }
 
+  const currentDayNum = day.day || 1;
+
   day.tasks.forEach(task => {
     const card = document.createElement('div');
     card.className = `task-card ${task.is_done ? 'done' : ''}`;
@@ -332,6 +464,8 @@ function renderDayContent(day) {
 
     const itemsHtml = (task.items || []).map(it => `<li>${escapeHtml(it)}</li>`).join('');
     const existingNote = task.note ? (task.note.text || task.note) : '';
+    const materialHtml = renderMaterialHtml(task);
+    const initialEvalHtml = task.last_evaluation ? renderEvaluationHtml(task.last_evaluation, task) : '';
 
     card.innerHTML = `
       <div class="task-top">
@@ -345,25 +479,32 @@ function renderDayContent(day) {
         </div>
       </div>
       <ul class="task-items-list">${itemsHtml}</ul>
-      <div class="task-actions">
-        <button class="btn-sm play-tts-btn" data-text="${escapeHtml(task.items ? task.items.join('. ') : task.title)}">
-          🔊 Nghe phát âm mẫu (TTS)
-        </button>
-        <button class="btn-sm mic-btn" data-id="${task.id}">
-          🎙️ Luyện nói (Mic)
-        </button>
+      ${materialHtml}
+      
+      <div class="task-submission-row">
+        <textarea class="task-textarea" rows="2" placeholder="Nhập câu trả lời hoặc bấm 🎙️ Luyện nói (Mic) để nói câu trả lời của bạn..." id="note-input-${task.id}">${escapeHtml(existingNote)}</textarea>
+        <div class="submission-actions">
+          <div style="display:flex; gap:6px;">
+            <button class="btn-sm mic-btn" data-id="${task.id}">
+              🎙️ Luyện nói (Mic)
+            </button>
+            <button class="btn-sm save-note-btn" data-id="${task.id}">
+              💾 Lưu nháp
+            </button>
+          </div>
+          <button class="btn-ai-submit" id="btn-submit-${task.id}">
+            🚀 Nộp bài & AI Chấm điểm
+          </button>
+        </div>
       </div>
-      <div class="task-note-box">
-        <input type="text" placeholder="Gõ hoặc nói câu trả lời của bạn vào đây..." value="${escapeHtml(existingNote)}" id="note-input-${task.id}" />
-        <button class="btn-sm save-note-btn" data-id="${task.id}">Lưu</button>
+
+      <div id="eval-result-container-${task.id}">
+        ${initialEvalHtml}
       </div>
     `;
 
     const cb = card.querySelector('.task-checkbox');
     cb.addEventListener('change', () => toggleTask(task.id, card, cb));
-
-    const ttsBtn = card.querySelector('.play-tts-btn');
-    ttsBtn.addEventListener('click', () => playTTS(ttsBtn.getAttribute('data-text')));
 
     const micBtn = card.querySelector('.mic-btn');
     micBtn.addEventListener('click', () => toggleSpeechRecognition(task.id, micBtn));
@@ -374,9 +515,74 @@ function renderDayContent(day) {
       saveNote(task.id, input.value.trim());
     });
 
+    const submitBtn = card.querySelector(`#btn-submit-${task.id}`);
+    submitBtn.addEventListener('click', () => {
+      submitTaskForEvaluation(currentDayNum, task.id, submitBtn, card);
+    });
+
     tasksContainer.appendChild(card);
   });
 }
+
+async function submitTaskForEvaluation(currentDay, taskId, btn, card) {
+  const input = document.getElementById(`note-input-${taskId}`);
+  const answer = (input ? input.value : '').trim();
+  if (!answer) {
+    alert('Vui lòng nhập hoặc nói câu trả lời của bạn trước khi nộp!');
+    return;
+  }
+
+  btn.disabled = true;
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '⏳ AI Quản gia đang chấm bài...';
+
+  try {
+    const res = await fetch(`${state.apiBase}/api/v1/study/evaluate`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        day: currentDay,
+        task_id: taskId,
+        user_answer: answer
+      })
+    });
+
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+
+    if (res.ok) {
+      const evalData = await res.json();
+      const evalContainer = document.getElementById(`eval-result-container-${taskId}`);
+      if (evalContainer) {
+        const task = (state.todayData?.tasks || []).find(t => t.id === taskId) || { id: taskId };
+        if (evalData.can_unlock_solution) {
+          task.is_solution_unlocked = true;
+          task.solution = evalData.solution;
+        }
+        evalContainer.innerHTML = renderEvaluationHtml(evalData, task);
+      }
+
+      if (evalData.status === 'CORRECT') {
+        card.classList.add('done');
+        const cb = card.querySelector('.task-checkbox');
+        if (cb) cb.checked = true;
+      }
+    } else {
+      alert('Lỗi kết nối máy chủ khi nộp bài.');
+    }
+  } catch (e) {
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+    alert(`Không gọi được AI chấm bài: ${e.message}`);
+  }
+}
+
+window.toggleSolutionBox = function(taskId) {
+  const wrapper = document.getElementById(`solution-wrapper-${taskId}`);
+  if (wrapper) {
+    wrapper.style.display = (wrapper.style.display === 'none' || !wrapper.style.display) ? 'block' : 'none';
+  }
+};
 
 async function toggleTask(taskId, card, cb) {
   try {
