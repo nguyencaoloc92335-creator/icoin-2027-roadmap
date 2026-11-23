@@ -2,7 +2,7 @@
 function getApiBase() {
   const custom = localStorage.getItem('icoin_server_url');
   if (custom) return custom.replace(/\/+$/, '');
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+  if (window.location.port === '8766' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     return window.location.origin;
   }
   return 'http://100.107.180.17:8766';
@@ -628,27 +628,54 @@ async function saveNote(taskId, note) {
 // VOCABULARY TRANSLATION & SPACED REPETITION (SM-2)
 // ----------------------------------------------------
 async function translateVocab(word) {
+  if (!word || !word.trim()) return;
+  const term = word.trim();
+
+  if (vocabTranslateBtn) {
+    vocabTranslateBtn.disabled = true;
+    vocabTranslateBtn.textContent = '⏳ Đang tra...';
+  }
+  if (vocabInput) vocabInput.disabled = true;
   vocabLoading.style.display = 'block';
   vocabResultContainer.innerHTML = '';
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 9000);
 
   try {
     const res = await fetch(`${state.apiBase}/api/v1/vocab/translate`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ word: word })
+      body: JSON.stringify({ word: term }),
+      signal: controller.signal
     });
 
-    vocabLoading.style.display = 'none';
+    clearTimeout(timeoutId);
+
     if (res.ok) {
       const data = await res.json();
       renderVocabResult(data);
-      loadDueVocab();
+      // Asynchronously refresh due list without blocking UI
+      setTimeout(() => loadDueVocab(), 400);
     } else {
-      vocabResultContainer.innerHTML = `<p style="color:#f87171; font-size:0.85rem;">Lỗi kết nối Quản gia dịch thuật.</p>`;
+      vocabResultContainer.innerHTML = `<p style="color:#f87171; font-size:0.85rem;">Lỗi kết nối Quản gia dịch thuật (${res.status}). Vui lòng bấm thử lại.</p>`;
     }
   } catch (e) {
+    clearTimeout(timeoutId);
+    const msg = e.name === 'AbortError'
+      ? 'Hết thời gian chờ AI phản hồi (quá 9s). Vui lòng thử lại.'
+      : e.message;
+    vocabResultContainer.innerHTML = `<p style="color:#f87171; font-size:0.85rem;">Không gọi được API dịch: ${escapeHtml(msg)}</p>`;
+  } finally {
     vocabLoading.style.display = 'none';
-    vocabResultContainer.innerHTML = `<p style="color:#f87171; font-size:0.85rem;">Không gọi được API dịch: ${e.message}</p>`;
+    if (vocabTranslateBtn) {
+      vocabTranslateBtn.disabled = false;
+      vocabTranslateBtn.textContent = 'Dịch & Lưu';
+    }
+    if (vocabInput) {
+      vocabInput.disabled = false;
+      vocabInput.focus();
+    }
   }
 }
 
