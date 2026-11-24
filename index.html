@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ICOIN 2027 · Lộ trình Tiếng Anh Chuyên Ngành (AI, OWC, OCC, Firmware, IoT)</title>
-  <link rel="stylesheet" href="css/style.css?v=4.0">
+  <link rel="stylesheet" href="css/style.css?v=5.0">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
 </head>
 <body>
@@ -43,6 +43,63 @@
       </div>
     </div>
 
+    <!-- Daily Schedule & Spaced Repetition Reminder Dashboard -->
+    <div id="scheduleReminderCard" class="schedule-reminder-card">
+      <div class="schedule-card-header">
+        <div class="schedule-title-group">
+          <span class="schedule-icon-bell">🔔</span>
+          <div>
+            <h3 class="schedule-main-title">Lịch Nhắc Học Tập & Ôn Từ Vựng Hàng Ngày</h3>
+            <p class="schedule-subtitle">Tự động đồng bộ với Quản gia Telegram theo thuật toán Spaced Repetition (Ebbinghaus SM-2)</p>
+          </div>
+        </div>
+        <div class="schedule-time-badge">
+          ⏰ 08:00 & 09:00 Mỗi ngày
+        </div>
+      </div>
+
+      <div class="schedule-grid">
+        <div class="schedule-grid-item">
+          <div class="grid-icon">🤖</div>
+          <div class="grid-text">
+            <span class="grid-label">Lịch nhắc hôm nay</span>
+            <strong class="grid-val active" id="scheduleStatusText">Đang kích hoạt (08:00 & 09:00)</strong>
+          </div>
+        </div>
+        <div class="schedule-grid-item">
+          <div class="grid-icon">🧠</div>
+          <div class="grid-text">
+            <span class="grid-label">Từ vựng đến hạn ôn</span>
+            <strong class="grid-val danger" id="scheduleDueVocabText">15 từ cần ôn tập</strong>
+          </div>
+        </div>
+        <div class="schedule-grid-item">
+          <div class="grid-icon">📈</div>
+          <div class="grid-text">
+            <span class="grid-label">Chu kỳ ghi nhớ Ebbinghaus</span>
+            <strong class="grid-val">1d → 3d → 7d → 15d → 30d</strong>
+          </div>
+        </div>
+        <div class="schedule-grid-item">
+          <div class="grid-icon">📱</div>
+          <div class="grid-text">
+            <span class="grid-label">Kênh thông báo & Nag</span>
+            <strong class="grid-val">Telegram (Nhắc lại: 12h, 18h, 21h)</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="schedule-actions-row">
+        <button id="btnOpenDueVocabNow" class="btn-primary" style="display: flex; align-items: center; gap: 6px;">
+          ⚡ Ôn tập từ vựng ngay (<span id="scheduleDueBtnCount">15</span> từ)
+        </button>
+        <button id="btnTestReminderPing" class="btn-secondary" style="display: flex; align-items: center; gap: 6px;">
+          🔔 Gửi tin kiểm tra Telegram ngay
+        </button>
+        <span id="pingReminderFeedback" style="font-size: 0.82rem; color: #34d399; display: none; align-items: center;"></span>
+      </div>
+    </div>
+
     <!-- Stages Navigation -->
     <div class="stage-scroller" id="stageScroller">
       <!-- Generated dynamically after authentication -->
@@ -74,7 +131,9 @@
 
   <!-- Floating Chat Bubble Toggle Button -->
   <button id="chatBubbleBtn" class="chat-bubble-toggle" style="position: fixed; bottom: 24px; right: 24px; z-index: 99999; display: flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #3b82f6, #06b6d4); color: white; padding: 12px 20px; border-radius: 30px; border: none; font-weight: 700; font-size: 0.9rem; cursor: pointer; box-shadow: 0 8px 24px rgba(6, 182, 212, 0.5);">
-    🤖 Quản gia Dịch & Nhắc từ
+    <span style="font-size: 1.1rem;">🤖</span>
+    <span>Quản gia Dịch & Nhắc từ</span>
+    <span id="bubbleDueBadge" class="bubble-notification-badge" style="display: none;">0</span>
   </button>
 
   <!-- Floating Chat Widget Panel -->
@@ -114,9 +173,13 @@
     </div>
 
     <div class="chat-widget-body" id="chatDueVocabView" style="display: none;">
-      <p style="font-size: 0.82rem; color: #94a3b8;">
-        Các thuật ngữ đến hạn ôn tập hôm nay theo đường cong lãng quên Ebbinghaus. Đọc phát âm đạt ≥ 80% để cho qua:
-      </p>
+      <div class="srs-info-box">
+        <div style="font-weight: 700; color: #38bdf8; margin-bottom: 4px;">⏰ Lịch nhắc Spaced Repetition (Ebbinghaus SM-2)</div>
+        <p style="margin: 0; color: #cbd5e1; font-size: 0.78rem; line-height: 1.4;">
+          Quản gia Telegram chủ động nhắc bạn lúc <strong>08:00 & 09:00</strong> sáng mỗi ngày kèm câu hỏi ngẫu nhiên.
+          Đọc phát âm đạt <strong>≥ 80%</strong> để vượt qua và dời từ sang mốc kế tiếp (3 ngày, 7 ngày, 15 ngày, 30 ngày).
+        </p>
+      </div>
       <div id="dueVocabListContainer" style="display: flex; flex-direction: column; gap: 12px;">
         <!-- Rendered SRS quizzes -->
       </div>
@@ -191,6 +254,6 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=4.0"></script>
+  <script src="js/app.js?v=5.0"></script>
 </body>
 </html>

@@ -69,6 +69,14 @@ const typingStatus = document.getElementById('typingStatus');
 const btnFillQuick = document.getElementById('btnFillQuick');
 const allVocabSearchInput = document.getElementById('allVocabSearchInput');
 const btnOpenAuthFromVocab = document.getElementById('btnOpenAuthFromVocab');
+const bubbleDueBadge = document.getElementById('bubbleDueBadge');
+const scheduleReminderCard = document.getElementById('scheduleReminderCard');
+const scheduleStatusText = document.getElementById('scheduleStatusText');
+const scheduleDueVocabText = document.getElementById('scheduleDueVocabText');
+const scheduleDueBtnCount = document.getElementById('scheduleDueBtnCount');
+const btnOpenDueVocabNow = document.getElementById('btnOpenDueVocabNow');
+const btnTestReminderPing = document.getElementById('btnTestReminderPing');
+const pingReminderFeedback = document.getElementById('pingReminderFeedback');
 
 window.addEventListener('DOMContentLoaded', () => {
   const urlParams = new URLSearchParams(window.location.search);
@@ -145,6 +153,51 @@ function setupEventListeners() {
     chatWidgetPanel.classList.toggle('hidden');
     if (!chatWidgetPanel.classList.contains('hidden')) {
       loadDueVocab();
+    }
+  });
+
+  // Schedule Card Quick Actions
+  btnOpenDueVocabNow?.addEventListener('click', () => {
+    chatWidgetPanel.classList.remove('hidden');
+    showChatTab('due');
+  });
+
+  btnTestReminderPing?.addEventListener('click', async () => {
+    if (btnTestReminderPing.disabled) return;
+    btnTestReminderPing.disabled = true;
+    btnTestReminderPing.textContent = '⏳ Đang gửi tin Telegram...';
+    if (pingReminderFeedback) {
+      pingReminderFeedback.style.display = 'none';
+    }
+
+    try {
+      const res = await fetch(`${state.apiBase}/api/v1/study/remind-now`, {
+        method: 'POST',
+        headers: getHeaders()
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (pingReminderFeedback) {
+          pingReminderFeedback.textContent = '✅ Quản gia đã gửi câu hỏi & lịch nhắc tới Telegram của bạn!';
+          pingReminderFeedback.style.display = 'inline-flex';
+          pingReminderFeedback.style.color = '#34d399';
+        }
+      } else {
+        if (pingReminderFeedback) {
+          pingReminderFeedback.textContent = '⚠️ Lỗi gửi tin Telegram. Kiểm tra lại kết nối bot.';
+          pingReminderFeedback.style.display = 'inline-flex';
+          pingReminderFeedback.style.color = '#f87171';
+        }
+      }
+    } catch (err) {
+      if (pingReminderFeedback) {
+        pingReminderFeedback.textContent = '❌ Lỗi kết nối backend C++.';
+        pingReminderFeedback.style.display = 'inline-flex';
+        pingReminderFeedback.style.color = '#f87171';
+      }
+    } finally {
+      btnTestReminderPing.disabled = false;
+      btnTestReminderPing.textContent = '🔔 Gửi tin kiểm tra Telegram ngay';
     }
   });
 
@@ -931,7 +984,24 @@ async function loadDueVocab() {
     });
     if (res.ok) {
       state.dueVocab = await res.json();
-      if (dueCountBadge) dueCountBadge.textContent = state.dueVocab.length;
+      const count = state.dueVocab.length;
+      if (dueCountBadge) dueCountBadge.textContent = count;
+
+      // Update badge on floating bubble button
+      if (bubbleDueBadge) {
+        bubbleDueBadge.textContent = count;
+        bubbleDueBadge.style.display = count > 0 ? 'inline-flex' : 'none';
+      }
+
+      // Update schedule status card
+      if (scheduleDueVocabText) {
+        scheduleDueVocabText.textContent = count > 0 ? `${count} từ cần ôn tập` : '0 từ (Đã hoàn tất 🎉)';
+        scheduleDueVocabText.className = count > 0 ? 'grid-val danger' : 'grid-val active';
+      }
+      if (scheduleDueBtnCount) {
+        scheduleDueBtnCount.textContent = count;
+      }
+
       renderDueVocabList();
     }
   } catch (e) {
