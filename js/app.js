@@ -2077,11 +2077,13 @@ function scrollChunkInsidePassage(chunkEl) {
   if (!chunkEl) return;
   const passage = chunkEl.closest('.material-passage');
   if (!passage) return;
-  const cTop = chunkEl.offsetTop - passage.offsetTop;
-  const cBottom = cTop + chunkEl.offsetHeight;
+  const pRect = passage.getBoundingClientRect();
+  const cRect = chunkEl.getBoundingClientRect();
+  const cTop = (cRect.top - pRect.top) + passage.scrollTop;
+  const cBottom = cTop + cRect.height;
   const vTop = passage.scrollTop;
   const vBottom = vTop + passage.clientHeight;
-  if (cTop < vTop + 12 || cBottom > vBottom - 12) {
+  if (cTop < vTop + 8 || cBottom > vBottom - 8) {
     passage.scrollTo({
       top: Math.max(0, cTop - passage.clientHeight / 3),
       behavior: 'smooth'
