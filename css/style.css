@@ -1159,6 +1159,15 @@ h1 {
   line-height: 1.4;
 }
 
+.speech-fallback-card {
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
 /* Stored Vocab Notebook & Auth Lock */
 .auth-locked-box {
   text-align: center;

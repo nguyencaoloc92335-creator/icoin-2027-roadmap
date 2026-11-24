@@ -1033,12 +1033,12 @@ function renderDueVocabList() {
 
     const box = document.createElement('div');
     box.className = 'srs-quiz-box';
-    box.id = `srs-box-${safeWord}`;
+    box.id = `srs-box-${safeId}`;
 
     let questionContent = `<div class="srs-prompt">${escapeHtml(q.prompt)}</div>`;
     if (q.options && q.options.length > 0) {
       questionContent += `<div class="srs-options-list">` +
-        q.options.map(opt => `<button class="srs-opt-btn" onclick="revealAnswer('${safeWord}')">${escapeHtml(opt)}</button>`).join('') +
+        q.options.map(opt => `<button class="srs-opt-btn" onclick="revealAnswer('${safeId}')">${escapeHtml(opt)}</button>`).join('') +
         `</div>`;
     }
 
@@ -1055,9 +1055,9 @@ function renderDueVocabList() {
           🗣️ Đọc to từ vựng tiếng Anh (Cần đạt ≥ 80% để cho qua):
         </div>
         <div class="speech-test-actions">
-          <button class="btn-sm" onclick="playTTS('${wordJsSafe}')">🔊 Nghe mẫu</button>
+          <button class="btn-sm" onclick="playTTS('${wordJsSafe}', this)">🔊 Nghe mẫu</button>
           <button class="btn-record-word" id="btn-due-speech-${safeId}" onclick="window.testWordPronunciation('${wordJsSafe}', 'btn-due-speech-${safeId}', 'due-speech-res-${safeId}', (score) => {
-            setTimeout(() => gradeReview('${wordJsSafe}', 5), 1200);
+            setTimeout(() => gradeReview('${wordJsSafe}', 5, '${safeId}'), 1200);
           })">
             🎙️ Phát âm để kiểm tra
           </button>
@@ -1065,17 +1065,17 @@ function renderDueVocabList() {
         <div id="due-speech-res-${safeId}"></div>
       </div>
 
-      <button class="btn-sm" id="btn-reveal-${safeWord}" onclick="revealAnswer('${safeWord}')">
+      <button class="btn-sm" id="btn-reveal-${safeId}" onclick="revealAnswer('${safeId}')">
         👁️ Xem đáp án
       </button>
-      <div id="answer-box-${safeWord}" style="display:none;" class="srs-answer-reveal">
+      <div id="answer-box-${safeId}" style="display:none;" class="srs-answer-reveal">
         <div><strong>Đáp án:</strong> ${escapeHtml(q.answer || item.word)}</div>
         <div style="margin-top:4px; font-size:0.8rem; color:#cbd5e1;">${escapeHtml(item.vietnamese || '')}</div>
         <div style="margin-top:8px; font-size:0.78rem;">Đánh giá mức độ nhớ của bạn:</div>
         <div class="srs-rating-buttons">
-          <button class="btn-rate btn-rate-hard" onclick="gradeReview('${wordJsSafe}', 1)">Khó / Quên (Nhắc lại mai)</button>
-          <button class="btn-rate btn-rate-good" onclick="gradeReview('${wordJsSafe}', 3)">Nhớ được (Tiến độ chuẩn)</button>
-          <button class="btn-rate btn-rate-easy" onclick="gradeReview('${wordJsSafe}', 5)">Rất dễ (Giãn chu kỳ)</button>
+          <button class="btn-rate btn-rate-hard" onclick="gradeReview('${wordJsSafe}', 1, '${safeId}')">Khó / Quên (Nhắc lại mai)</button>
+          <button class="btn-rate btn-rate-good" onclick="gradeReview('${wordJsSafe}', 3, '${safeId}')">Nhớ được (Tiến độ chuẩn)</button>
+          <button class="btn-rate btn-rate-easy" onclick="gradeReview('${wordJsSafe}', 5, '${safeId}')">Rất dễ (Giãn chu kỳ)</button>
         </div>
       </div>
     `;
@@ -1199,78 +1199,329 @@ function calculatePronunciationScore(spoken, target) {
   return Math.round(similarity * 100);
 }
 
+// ----------------------------------------------------
+// PRONUNCIATION TESTING & AUDIO ENGINE (iOS & Cross-Browser Safe)
+// ----------------------------------------------------
+let currentPlayingAudio = null;
+
+// Dual-Engine Audio Player (HTML5 Audio + Web Speech API Fallback)
+window.playTTS = function(text, btnElement) {
+  if (!text) return;
+
+  // Stop any currently playing audio
+  if (currentPlayingAudio) {
+    try {
+      currentPlayingAudio.pause();
+      currentPlayingAudio.currentTime = 0;
+    } catch (_) {}
+    currentPlayingAudio = null;
+  }
+
+  // Update button visual state if provided
+  let origText = '';
+  if (btnElement && btnElement.textContent) {
+    origText = btnElement.textContent;
+    btnElement.textContent = '🔊 Đang đọc...';
+  }
+
+  const resetBtn = () => {
+    if (btnElement && origText) {
+      btnElement.textContent = origText;
+    }
+  };
+
+  // 1. Primary Engine: HTML5 Audio with Google Translate TTS (iOS Safari & Mobile 100% compatible)
+  const trimmed = text.length > 200 ? text.substring(0, 200) : text;
+  const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=${encodeURIComponent(trimmed)}`;
+
+  try {
+    const audio = new Audio(audioUrl);
+    currentPlayingAudio = audio;
+
+    audio.onended = () => {
+      currentPlayingAudio = null;
+      resetBtn();
+    };
+
+    audio.onerror = () => {
+      // Fallback to Web Speech API
+      currentPlayingAudio = null;
+      playWebSpeechSynthesis(text, resetBtn);
+    };
+
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((err) => {
+        console.warn('HTML5 Audio playback error, falling back to Web Speech API:', err);
+        currentPlayingAudio = null;
+        playWebSpeechSynthesis(text, resetBtn);
+      });
+    }
+  } catch (err) {
+    playWebSpeechSynthesis(text, resetBtn);
+  }
+};
+
+function playWebSpeechSynthesis(text, onComplete) {
+  if (!('speechSynthesis' in window)) {
+    if (onComplete) onComplete();
+    alert('Trình duyệt không hỗ trợ phát âm thanh TTS.');
+    return;
+  }
+
+  try {
+    // On iOS Safari: NEVER call cancel() right before speak() in the same tick!
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US';
+    utterance.rate = 0.92;
+
+    // Pick English voice if available
+    const voices = window.speechSynthesis.getVoices();
+    if (voices && voices.length > 0) {
+      const enVoice = voices.find(v => v.lang && (v.lang === 'en-US' || v.lang.startsWith('en')));
+      if (enVoice) utterance.voice = enVoice;
+    }
+
+    utterance.onend = () => {
+      if (onComplete) onComplete();
+    };
+
+    utterance.onerror = (e) => {
+      console.warn('SpeechSynthesis error:', e);
+      if (onComplete) onComplete();
+    };
+
+    window.speechSynthesis.speak(utterance);
+  } catch (e) {
+    console.error('SpeechSynthesis exception:', e);
+    if (onComplete) onComplete();
+  }
+}
+
+// Pronunciation test with intelligent iOS / HTTP Fallback
 window.testWordPronunciation = function(targetWord, btnId, resultId, onPassCallback) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const btn = document.getElementById(btnId);
   const resultEl = document.getElementById(resultId);
+  const safeId = targetWord.toLowerCase().replace(/[^a-z0-9]/g, '_');
 
-  if (!SpeechRecognition) {
-    if (resultEl) {
-      resultEl.innerHTML = `<span style="color:#fbbf24; font-size:0.78rem;">Trình duyệt không hỗ trợ Mic. Tạm tính đạt chuẩn: 100%</span>`;
-      if (onPassCallback) onPassCallback(100);
-    }
-    return;
-  }
-
-  const recognition = new SpeechRecognition();
-  recognition.lang = 'en-US';
-  recognition.interimResults = false;
-
-  if (btn) {
-    btn.classList.add('recording');
-    btn.textContent = '🔴 Đang nghe... Hãy đọc to!';
-  }
-
-  recognition.onresult = (event) => {
-    const spoken = event.results[0][0].transcript;
-    const score = calculatePronunciationScore(spoken, targetWord);
-    const isPass = score >= 80;
-
+  const showFallbackUI = (reason) => {
     if (btn) {
       btn.classList.remove('recording');
-      btn.textContent = '🎙️ Đọc lại từ này';
+      btn.textContent = '🎙️ Thử lại mic';
     }
-
     if (resultEl) {
       resultEl.innerHTML = `
-        <div class="speech-score-badge ${isPass ? 'pass' : 'fail'}">
-          ${isPass ? '🟢 Đạt chuẩn' : '🔴 Chưa đạt'}: ${score}% (Cần ≥ 80%)
-        </div>
-        <div class="speech-feedback-text">
-          ${isPass 
-            ? `🎉 Tuyệt vời! Bạn đã phát âm chính xác từ "<strong>${escapeHtml(targetWord)}</strong>". Đã cho qua!` 
-            : `Bạn đã đọc thành: "<em>${escapeHtml(spoken)}</em>" (Từ chuẩn: "<strong>${escapeHtml(targetWord)}</strong>"). Hãy nghe lại mẫu và thử lại!`
-          }
+        <div class="speech-fallback-card">
+          <div style="font-weight:700; color:#fbbf24; font-size:0.82rem; margin-bottom:4px;">
+            📱 Chế độ Hỗ trợ iPhone / Mic chưa khả dụng (${escapeHtml(reason)})
+          </div>
+          <p style="font-size:0.78rem; color:#cbd5e1; margin:0 0 8px; line-height:1.4;">
+            Trên iPhone qua mạng nội bộ HTTP, Apple hạn chế quyền Micro trực tiếp. Bạn có thể tự xác nhận hoặc gõ nhanh từ này để hoàn tất ôn tập:
+          </p>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+            <button type="button" class="btn-sm btn-rate-easy" onclick="window.confirmPronunciationPass('${targetWord.replace(/'/g, "\\'")}', '${resultId}', '${safeId}', ${onPassCallback ? 'true' : 'false'})">
+              ✅ Tôi đã đọc to chuẩn (Cho qua)
+            </button>
+            <button type="button" class="btn-sm" style="background:#334155;" onclick="window.toggleTypingFallback('${safeId}')">
+              ✍️ Gõ từ để kiểm tra
+            </button>
+            <button type="button" class="btn-sm" onclick="window.testWordPronunciation('${targetWord.replace(/'/g, "\\'")}', '${btnId}', '${resultId}', ${onPassCallback ? 'window._lastPassCallback' : 'null'})">
+              🔄 Thử lại Mic
+            </button>
+          </div>
+          <div id="typing-fallback-box-${safeId}" style="display:none; padding:8px; background:rgba(15,23,42,0.8); border-radius:6px; border:1px solid #475569;">
+            <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">Hãy gõ lại từ: <strong>${escapeHtml(targetWord)}</strong></div>
+            <div style="display:flex; gap:6px;">
+              <input type="text" id="typing-fallback-input-${safeId}" placeholder="Gõ từ..." style="flex:1; padding:6px 8px; background:#0f172a; border:1px solid #334155; color:#fff; border-radius:4px; font-size:0.82rem;" />
+              <button type="button" class="btn-sm btn-primary" onclick="window.verifyTypingFallback('${targetWord.replace(/'/g, "\\'")}', '${safeId}', '${resultId}', ${onPassCallback ? 'true' : 'false'})">Xác nhận</button>
+            </div>
+            <div id="typing-fallback-status-${safeId}" style="font-size:0.75rem; margin-top:4px;"></div>
+          </div>
         </div>
       `;
     }
-
-    if (isPass && onPassCallback) {
-      onPassCallback(score);
-    }
   };
 
-  recognition.onerror = (e) => {
+  if (onPassCallback) {
+    window._lastPassCallback = onPassCallback;
+  }
+
+  // Check if SpeechRecognition is supported
+  if (!SpeechRecognition) {
+    showFallbackUI('Trình duyệt chưa hỗ trợ Web Speech');
+    return;
+  }
+
+  let recognitionActive = false;
+  let recognitionTimeout = null;
+
+  try {
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 3;
+
     if (btn) {
-      btn.classList.remove('recording');
-      btn.textContent = '🎙️ Thử lại';
+      btn.classList.add('recording');
+      btn.textContent = '🔴 Đang nghe... Hãy đọc to!';
     }
     if (resultEl) {
-      resultEl.innerHTML = `<span style="color:#f87171; font-size:0.78rem;">Lỗi mic: ${e.error}. Hãy cho phép quyền micro trên trình duyệt.</span>`;
+      resultEl.innerHTML = `<span style="color:#38bdf8; font-size:0.78rem;">🎙️ Đang lắng nghe âm thanh từ microphone...</span>`;
     }
-  };
 
-  recognition.start();
+    // 8-second safety timeout so button is never permanently stuck
+    recognitionTimeout = setTimeout(() => {
+      if (recognitionActive) {
+        try { recognition.stop(); } catch (_) {}
+        recognitionActive = false;
+        showFallbackUI('Hết thời gian chờ âm thanh');
+      }
+    }, 8000);
+
+    recognition.onstart = () => {
+      recognitionActive = true;
+    };
+
+    recognition.onresult = (event) => {
+      clearTimeout(recognitionTimeout);
+      recognitionActive = false;
+
+      // Check all alternative transcripts for the highest similarity
+      let bestScore = 0;
+      let bestTranscript = '';
+      if (event.results && event.results[0]) {
+        for (let i = 0; i < event.results[0].length; i++) {
+          const t = event.results[0][i].transcript;
+          const s = calculatePronunciationScore(t, targetWord);
+          if (s > bestScore) {
+            bestScore = s;
+            bestTranscript = t;
+          }
+        }
+      }
+
+      const isPass = bestScore >= 80;
+
+      if (btn) {
+        btn.classList.remove('recording');
+        btn.textContent = '🎙️ Đọc lại từ này';
+      }
+
+      if (resultEl) {
+        resultEl.innerHTML = `
+          <div class="speech-score-badge ${isPass ? 'pass' : 'fail'}">
+            ${isPass ? '🟢 Đạt chuẩn' : '🔴 Chưa đạt'}: ${bestScore}% (Cần ≥ 80%)
+          </div>
+          <div class="speech-feedback-text">
+            ${isPass 
+              ? `🎉 Tuyệt vời! Bạn đã phát âm chính xác từ "<strong>${escapeHtml(targetWord)}</strong>". Đã cho qua!` 
+              : `Máy nhận được: "<em>${escapeHtml(bestTranscript)}</em>" (Từ chuẩn: "<strong>${escapeHtml(targetWord)}</strong>"). Hãy nghe lại mẫu và thử lại!`
+            }
+          </div>
+          ${!isPass ? `
+            <div style="margin-top:6px;">
+              <button type="button" class="btn-sm" style="background:#334155; font-size:0.72rem; padding:2px 8px;" onclick="window.confirmPronunciationPass('${targetWord.replace(/'/g, "\\'")}', '${resultId}', '${safeId}', ${onPassCallback ? 'true' : 'false'})">
+                Châm chước & Cho qua
+              </button>
+            </div>
+          ` : ''}
+        `;
+      }
+
+      if (isPass && onPassCallback) {
+        onPassCallback(bestScore);
+      }
+    };
+
+    recognition.onerror = (e) => {
+      clearTimeout(recognitionTimeout);
+      recognitionActive = false;
+      const errName = e.error || 'Lỗi không xác định';
+      showFallbackUI(errName);
+    };
+
+    recognition.onend = () => {
+      clearTimeout(recognitionTimeout);
+      if (recognitionActive) {
+        recognitionActive = false;
+        if (btn && btn.classList.contains('recording')) {
+          btn.classList.remove('recording');
+          btn.textContent = '🎙️ Thử lại';
+        }
+      }
+    };
+
+    recognition.start();
+  } catch (err) {
+    clearTimeout(recognitionTimeout);
+    recognitionActive = false;
+    showFallbackUI(err.name || 'Lỗi quyền truy cập');
+  }
 };
 
-window.revealAnswer = function(word) {
-  const box = document.getElementById(`answer-box-${word}`);
-  const btn = document.getElementById(`btn-reveal-${word}`);
+window.confirmPronunciationPass = function(word, resultId, safeId, hasCallback) {
+  const resultEl = document.getElementById(resultId);
+  if (resultEl) {
+    resultEl.innerHTML = `
+      <div class="speech-score-badge pass">
+        🟢 Đã xác nhận đạt chuẩn: 100%
+      </div>
+      <div class="speech-feedback-text">
+        🎉 Tuyệt vời! Bạn đã tự tin phát âm chuẩn từ "<strong>${escapeHtml(word)}</strong>". Đã cho qua!
+      </div>
+    `;
+  }
+  const targetId = safeId || word.toLowerCase().replace(/[^a-z0-9]/g, '_');
+  setTimeout(() => window.gradeReview(word, 5, targetId), 1000);
+};
+
+window.toggleTypingFallback = function(safeId) {
+  const box = document.getElementById(`typing-fallback-box-${safeId}`);
+  if (box) {
+    box.style.display = box.style.display === 'none' ? 'block' : 'none';
+    if (box.style.display === 'block') {
+      const inp = document.getElementById(`typing-fallback-input-${safeId}`);
+      if (inp) inp.focus();
+    }
+  }
+};
+
+window.verifyTypingFallback = function(word, safeId, resultId, hasCallback) {
+  const inp = document.getElementById(`typing-fallback-input-${safeId}`);
+  const status = document.getElementById(`typing-fallback-status-${safeId}`);
+  if (!inp) return;
+  const val = inp.value.trim().toLowerCase();
+  const target = word.trim().toLowerCase();
+
+  if (val === target) {
+    if (status) {
+      status.style.color = '#34d399';
+      status.textContent = '✅ Chính xác 100%! Đang chuyển bài...';
+    }
+    setTimeout(() => window.confirmPronunciationPass(word, resultId, safeId, hasCallback), 600);
+  } else {
+    if (status) {
+      status.style.color = '#f87171';
+      status.textContent = `❌ Chưa đúng mặt chữ. Cần gõ đúng: "${word}"`;
+    }
+  }
+};
+
+window.revealAnswer = function(idOrWord) {
+  const safeId = idOrWord.toLowerCase().replace(/[^a-z0-9]/g, '_');
+  const box = document.getElementById(`answer-box-${safeId}`) || document.getElementById(`answer-box-${idOrWord}`);
+  const btn = document.getElementById(`btn-reveal-${safeId}`) || document.getElementById(`btn-reveal-${idOrWord}`);
   if (box) box.style.display = 'block';
   if (btn) btn.style.display = 'none';
 };
 
-window.gradeReview = async function(word, score) {
+window.gradeReview = async function(word, score, safeId) {
+  const targetId = safeId || word.toLowerCase().replace(/[^a-z0-9]/g, '_');
   try {
     const res = await fetch(`${state.apiBase}/api/v1/vocab/review`, {
       method: 'POST',
@@ -1278,7 +1529,7 @@ window.gradeReview = async function(word, score) {
       body: JSON.stringify({ word: word, score: score })
     });
     if (res.ok) {
-      const box = document.getElementById(`srs-box-${word}`);
+      const box = document.getElementById(`srs-box-${targetId}`) || document.getElementById(`srs-box-${word}`);
       if (box) {
         box.innerHTML = `<div style="color:#34d399; font-size:0.85rem; padding:8px 0;">✅ Đã cập nhật chu kỳ ôn tập tiếp theo!</div>`;
         setTimeout(() => {
@@ -1291,67 +1542,64 @@ window.gradeReview = async function(word, score) {
   }
 };
 
-// Web Speech API: Text-to-Speech
-window.playTTS = function(text) {
-  if (!('speechSynthesis' in window)) {
-    alert('Trình duyệt không hỗ trợ Web Speech TTS.');
-    return;
-  }
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = 'en-US';
-  utterance.rate = 0.95;
-  window.speechSynthesis.speak(utterance);
-};
-
-// Web Speech API: Speech-To-Text (Microphone)
+// Web Speech API: Speech-To-Text (Microphone for Note taking)
 function toggleSpeechRecognition(taskId, micBtn) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
-    alert('Trình duyệt không hỗ trợ nhận dạng giọng nói.');
+    alert('Trình duyệt của bạn chưa hỗ trợ nhận dạng giọng nói qua mic. Vui lòng gõ câu trả lời vào ô.');
     return;
   }
 
   if (state.isRecording) {
-    if (state.recognition) state.recognition.stop();
+    if (state.recognition) {
+      try { state.recognition.stop(); } catch (_) {}
+    }
     state.isRecording = false;
     micBtn.classList.remove('speaking-active');
     micBtn.textContent = '🎙️ Luyện nói (Mic)';
     return;
   }
 
-  const recognition = new SpeechRecognition();
-  recognition.lang = 'en-US';
-  recognition.interimResults = false;
+  try {
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
 
-  recognition.onstart = () => {
-    state.isRecording = true;
-    micBtn.classList.add('speaking-active');
-    micBtn.textContent = '🔴 Đang nghe... Hãy nói tiếng Anh';
-  };
+    recognition.onstart = () => {
+      state.isRecording = true;
+      micBtn.classList.add('speaking-active');
+      micBtn.textContent = '🔴 Đang nghe... Hãy nói tiếng Anh';
+    };
 
-  recognition.onresult = (event) => {
-    const transcript = event.results[0][0].transcript;
-    const input = document.getElementById(`note-input-${taskId}`);
-    if (input) {
-      input.value = transcript;
-    }
-  };
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      const input = document.getElementById(`note-input-${taskId}`);
+      if (input) {
+        input.value = transcript;
+      }
+    };
 
-  recognition.onend = () => {
+    recognition.onend = () => {
+      state.isRecording = false;
+      micBtn.classList.remove('speaking-active');
+      micBtn.textContent = '🎙️ Luyện nói (Mic)';
+    };
+
+    recognition.onerror = (e) => {
+      state.isRecording = false;
+      micBtn.classList.remove('speaking-active');
+      micBtn.textContent = '🎙️ Luyện nói (Mic)';
+      console.warn('SpeechRecognition error on task:', e);
+    };
+
+    state.recognition = recognition;
+    recognition.start();
+  } catch (err) {
     state.isRecording = false;
     micBtn.classList.remove('speaking-active');
     micBtn.textContent = '🎙️ Luyện nói (Mic)';
-  };
-
-  recognition.onerror = () => {
-    state.isRecording = false;
-    micBtn.classList.remove('speaking-active');
-    micBtn.textContent = '🎙️ Luyện nói (Mic)';
-  };
-
-  state.recognition = recognition;
-  recognition.start();
+    alert('Không thể khởi động micro trên trình duyệt này. Bạn hãy gõ trực tiếp câu trả lời vào ô bên dưới.');
+  }
 }
 
 function escapeHtml(str) {
