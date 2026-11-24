@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ICOIN 2027 · Lộ trình Tiếng Anh Chuyên Ngành (AI, OWC, OCC, Firmware, IoT)</title>
-  <link rel="stylesheet" href="css/style.css?v=7.0">
+  <link rel="stylesheet" href="css/style.css?v=8.0">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
 </head>
 <body>
@@ -100,52 +100,158 @@
       </div>
     </div>
 
-    <!-- Stages Navigation -->
-    <div class="stage-scroller" id="stageScroller">
-      <!-- Generated dynamically after authentication -->
+    <!-- Main Tabs Navigation Bar -->
+    <div class="main-tabs-nav" id="mainTabsNav">
+      <button class="main-nav-btn active" id="mainTabLessonBtn" onclick="window.switchMainTab('lesson')">
+        <span class="tab-icon">📖</span>
+        <span class="tab-title-text">Lộ Trình Bài Học</span>
+        <span class="tab-red-dot" id="lessonRedDot" title="Có nhiệm vụ học hôm nay chưa hoàn thành"></span>
+      </button>
+      <button class="main-nav-btn" id="mainTabReviewBtn" onclick="window.switchMainTab('review')">
+        <span class="tab-icon">🧠</span>
+        <span class="tab-title-text">Ôn Tập Spaced Repetition</span>
+        <span class="tab-red-dot" id="reviewRedDot" title="Có từ vựng đến hạn cần ôn tập"></span>
+        <span class="tab-badge-count" id="reviewCountBadge">0</span>
+      </button>
+      <button class="main-nav-btn" id="mainTabNotebookBtn" onclick="window.switchMainTab('notebook')">
+        <span class="tab-icon">📚</span>
+        <span class="tab-title-text">Sổ Từ Vựng Đã Lưu</span>
+        <span class="tab-lock-icon">🔒</span>
+      </button>
     </div>
 
-    <!-- Main Day Content -->
-    <div class="day-header-card">
-      <div class="day-meta">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <span class="day-badge" id="dayNumberBadge">NGÀY 1</span>
-          <span style="font-size: 0.85rem; color: #94a3b8;">B1 ➔ B2/C1 Technical English</span>
+    <!-- TAB 1: LỘ TRÌNH BÀI HỌC HÀNG NGÀY -->
+    <div class="main-tab-view active" id="viewLesson">
+      <!-- Stages Navigation -->
+      <div class="stage-scroller" id="stageScroller">
+        <!-- Generated dynamically after authentication -->
+      </div>
+
+      <!-- Main Day Content -->
+      <div class="day-header-card">
+        <div class="day-meta">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span class="day-badge" id="dayNumberBadge">NGÀY 1</span>
+            <span style="font-size: 0.85rem; color: #94a3b8;">B1 ➔ B2/C1 Technical English</span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button id="prevDayBtn" class="btn-sm">◀ Ngày trước</button>
+            <button id="nextDayBtn" class="btn-sm">Ngày kế tiếp ▶</button>
+          </div>
         </div>
-        <div style="display: flex; gap: 8px;">
-          <button id="prevDayBtn" class="btn-sm">◀ Ngày trước</button>
-          <button id="nextDayBtn" class="btn-sm">Ngày kế tiếp ▶</button>
+        <h2 class="theme-title" id="themeTitle">Vui lòng kích hoạt Token</h2>
+        <p class="theme-desc" id="themeDesc">Dữ liệu học được bảo mật hoàn toàn tại máy chủ cục bộ và đồng bộ trên mọi thiết bị của bạn.</p>
+      </div>
+
+      <!-- Tasks List -->
+      <div class="tasks-container" id="tasksContainer">
+        <p id="lockPlaceholder" style="text-align: center; padding: 40px 20px; color: #94a3b8; font-size: 0.95rem;">
+          🔐 Chưa có dữ liệu bài học. Nhập Token thiết bị do Quản gia Telegram cấp để tải lộ trình!
+        </p>
+      </div>
+    </div>
+
+    <!-- TAB 2: ÔN TẬP SPACED REPETITION (SRS) -->
+    <div class="main-tab-view" id="viewReview" style="display: none;">
+      <div class="review-page-header">
+        <div class="review-title-group">
+          <div class="review-icon-box">🧠</div>
+          <div>
+            <h2 class="review-main-title">Ôn Tập Từ Vựng Ngắt Quãng (Spaced Repetition)</h2>
+            <p class="review-subtitle">Thuật toán Ebbinghaus SM-2 · Quản gia tự động tính điểm lãng quên · Đọc phát âm chuẩn ≥ 80% để dời lịch</p>
+          </div>
+        </div>
+
+        <!-- Gamification Progress & Zero-Inbox Status -->
+        <div class="review-progress-card">
+          <div class="review-progress-info">
+            <span id="reviewProgressText">Tiến độ hôm nay: <strong id="reviewProgressRatio">0/0 từ</strong></span>
+            <span id="reviewZeroInboxBadge" class="zero-inbox-status pending"><span class="red-dot-circle"></span> Còn từ chưa ôn</span>
+          </div>
+          <div class="review-progress-track">
+            <div class="review-progress-fill" id="reviewProgressFill" style="width: 0%;"></div>
+          </div>
         </div>
       </div>
-      <h2 class="theme-title" id="themeTitle">Vui lòng kích hoạt Token</h2>
-      <p class="theme-desc" id="themeDesc">Dữ liệu học được bảo mật hoàn toàn tại máy chủ cục bộ và đồng bộ trên mọi thiết bị của bạn.</p>
+
+      <div class="srs-info-box" style="margin-bottom: 20px;">
+        <div style="font-weight: 700; color: #38bdf8; margin-bottom: 4px;">⏰ Cơ chế ôn tập & Lịch nhắc Quản gia</div>
+        <p style="margin: 0; color: #cbd5e1; font-size: 0.85rem; line-height: 1.5;">
+          Quản gia Telegram chủ động nhắc bạn lúc <strong>08:00 & 09:00</strong> sáng mỗi ngày kèm câu hỏi ngẫu nhiên.
+          Đọc phát âm đạt <strong>≥ 80%</strong> để vượt qua và dời từ sang mốc kế tiếp (1d → 3d → 7d → 15d → 30d). Hoàn thành toàn bộ để <strong>xoá sạch chấm đỏ</strong>!
+        </p>
+        <p style="margin: 6px 0 0; color: #fbbf24; font-size: 0.8rem; line-height: 1.4;">
+          📱 <em>Dành cho iPhone: Nếu không nghe thấy loa, hãy kiểm tra cần gạt im lặng bên sườn máy. Nếu Safari hạn chế mic qua mạng nội bộ HTTP, bạn có thể bấm "✅ Đã đọc chuẩn" hoặc "✍️ Gõ từ" để hoàn thành bài ôn!</em>
+        </p>
+      </div>
+
+      <!-- Main SRS Cards Container -->
+      <div id="mainDueVocabList" class="main-due-vocab-list">
+        <!-- Rendered SRS quizzes -->
+      </div>
     </div>
 
-    <!-- Tasks List -->
-    <div class="tasks-container" id="tasksContainer">
-      <p id="lockPlaceholder" style="text-align: center; padding: 40px 20px; color: #94a3b8; font-size: 0.95rem;">
-        🔐 Chưa có dữ liệu bài học. Nhập Token thiết bị do Quản gia Telegram cấp để tải lộ trình!
-      </p>
+    <!-- TAB 3: SỔ TỪ VỰNG ĐÃ LƯU (AUTHENTICATED) -->
+    <div class="main-tab-view" id="viewNotebook" style="display: none;">
+      <div class="review-page-header">
+        <div class="review-title-group">
+          <div class="review-icon-box">📚</div>
+          <div>
+            <h2 class="review-main-title">Sổ Từ Vựng Kỹ Thuật Cá Nhân</h2>
+            <p class="review-subtitle">Lưu trữ toàn bộ thuật ngữ chuyên ngành đã tra cứu và lưu trữ · Bảo mật HMAC-SHA256</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="mainNotebookAuthLock" class="auth-locked-box" style="display: none;">
+        <div style="font-size: 2.2rem; margin-bottom: 8px;">🔒</div>
+        <h3 style="color: #f1f5f9; margin-bottom: 8px;">Cần Xác thực Thiết bị</h3>
+        <p style="font-size: 0.9rem; color: #94a3b8; line-height: 1.5; margin-bottom: 16px; max-width: 500px; margin-left: auto; margin-right: auto;">
+          Sổ từ vựng cá nhân được bảo vệ nghiêm ngặt bằng khoá HMAC-SHA256. Vui lòng xác thực Token để truy cập.
+        </p>
+        <button class="btn-primary" id="btnOpenAuthFromMainNotebook">🔐 Nhập mã xác thực</button>
+      </div>
+
+      <div id="mainNotebookContent" style="display: none;">
+        <div style="margin-bottom: 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+          <input type="text" id="mainNotebookSearchInput" placeholder="🔍 Tìm nhanh từ đã lưu (tiếng Anh hoặc nghĩa Việt)..." style="flex: 1; min-width: 250px; background: #0f172a; border: 1px solid var(--border-color); color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 0.9rem;" />
+          <span style="font-size: 0.85rem; color: #94a3b8;" id="mainNotebookTotalCount">Tổng: 0 từ</span>
+        </div>
+        <div id="mainNotebookListContainer" style="display: flex; flex-direction: column; gap: 12px;">
+          <!-- Rendered saved word cards -->
+        </div>
+      </div>
     </div>
   </div>
 
   <!-- Floating Chat Bubble Toggle Button -->
   <button id="chatBubbleBtn" class="chat-bubble-toggle" style="position: fixed; bottom: 24px; right: 24px; z-index: 99999; display: flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #3b82f6, #06b6d4); color: white; padding: 12px 20px; border-radius: 30px; border: none; font-weight: 700; font-size: 0.9rem; cursor: pointer; box-shadow: 0 8px 24px rgba(6, 182, 212, 0.5);">
     <span style="font-size: 1.1rem;">🤖</span>
-    <span>Quản gia Dịch & Nhắc từ</span>
+    <span>Tra từ & Luyện viết</span>
     <span id="bubbleDueBadge" class="bubble-notification-badge" style="display: none;">0</span>
   </button>
 
-  <!-- Floating Chat Widget Panel -->
+  <!-- Floating Chat Widget Panel (Tra từ mới & Luyện viết) -->
   <div id="chatWidgetPanel" class="chat-widget-panel hidden">
     <div class="chat-widget-header">
-      <h3>🤖 Quản gia ICOIN (AI & Spaced Repetition)</h3>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 1.2rem;">🤖</span>
+        <div>
+          <h3 style="margin: 0; font-size: 0.95rem;">Quản gia Dịch & Luyện viết</h3>
+          <p style="margin: 0; font-size: 0.72rem; color: #94a3b8;">Bấm/chọn từ bất kỳ trên web để tra cứu</p>
+        </div>
+      </div>
       <button id="closeChatWidgetBtn" class="btn-sm" style="padding: 2px 8px;">✕</button>
     </div>
-    <div class="chat-tabs">
-      <button class="chat-tab-btn active" id="tabTranslateBtn">Tra từ mới</button>
-      <button class="chat-tab-btn" id="tabDueVocabBtn">Ôn tập (<span id="dueCountBadge">0</span>)</button>
-      <button class="chat-tab-btn" id="tabAllVocabBtn">Sổ từ đã lưu (<span id="allCountBadge">0</span>) 🔒</button>
+
+    <!-- Quick Navigation Shortcuts inside Chat Panel -->
+    <div class="chat-quick-shortcuts">
+      <button class="chat-shortcut-btn" onclick="window.switchMainTab('review'); document.getElementById('chatWidgetPanel').classList.add('hidden');">
+        🧠 Tab Ôn tập Spaced Repetition (<span id="bubbleChatDueCount">0</span>)
+      </button>
+      <button class="chat-shortcut-btn" onclick="window.switchMainTab('notebook'); document.getElementById('chatWidgetPanel').classList.add('hidden');">
+        📚 Tab Sổ từ vựng
+      </button>
     </div>
     
     <div class="chat-widget-body" id="chatTranslateView">
@@ -169,42 +275,6 @@
 
       <div id="vocabResultContainer">
         <!-- Rendered translation result -->
-      </div>
-    </div>
-
-    <div class="chat-widget-body" id="chatDueVocabView" style="display: none;">
-      <div class="srs-info-box">
-        <div style="font-weight: 700; color: #38bdf8; margin-bottom: 4px;">⏰ Lịch nhắc Spaced Repetition (Ebbinghaus SM-2)</div>
-        <p style="margin: 0; color: #cbd5e1; font-size: 0.78rem; line-height: 1.4;">
-          Quản gia Telegram chủ động nhắc bạn lúc <strong>08:00 & 09:00</strong> sáng mỗi ngày kèm câu hỏi ngẫu nhiên.
-          Đọc phát âm đạt <strong>≥ 80%</strong> để vượt qua và dời từ sang mốc kế tiếp (3 ngày, 7 ngày, 15 ngày, 30 ngày).
-        </p>
-        <p style="margin: 6px 0 0; color: #fbbf24; font-size: 0.74rem; line-height: 1.3;">
-          📱 <em>Dành cho iPhone: Nếu không nghe thấy loa, hãy kiểm tra cần gạt im lặng bên sườn máy. Nếu Safari hạn chế mic qua mạng nội bộ HTTP, bạn có thể bấm "✅ Đã đọc chuẩn" hoặc "✍️ Gõ từ" để hoàn thành bài ôn!</em>
-        </p>
-      </div>
-      <div id="dueVocabListContainer" style="display: flex; flex-direction: column; gap: 12px;">
-        <!-- Rendered SRS quizzes -->
-      </div>
-    </div>
-
-    <div class="chat-widget-body" id="chatAllVocabView" style="display: none;">
-      <div id="allVocabAuthLock" class="auth-locked-box" style="display: none;">
-        <div style="font-size: 1.8rem; margin-bottom: 6px;">🔒</div>
-        <h4 style="color: #f1f5f9; margin-bottom: 6px;">Cần Xác thực Thiết bị</h4>
-        <p style="font-size: 0.82rem; color: #94a3b8; line-height: 1.4; margin-bottom: 12px;">
-          Sổ từ vựng cá nhân được bảo vệ nghiêm ngặt bằng khoá HMAC-SHA256. Vui lòng xác thực để truy cập.
-        </p>
-        <button class="btn-primary" id="btnOpenAuthFromVocab">🔐 Nhập mã xác thực</button>
-      </div>
-
-      <div id="allVocabContent" style="display: none;">
-        <div style="margin-bottom: 10px;">
-          <input type="text" id="allVocabSearchInput" placeholder="🔍 Tìm nhanh từ đã lưu (tiếng Anh hoặc nghĩa Việt)..." style="width: 100%; box-sizing: border-box; background: #0f172a; border: 1px solid var(--border-color); color: #fff; padding: 8px 10px; border-radius: 6px; font-size: 0.82rem;" />
-        </div>
-        <div id="allVocabListContainer" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto;">
-          <!-- Rendered saved word cards -->
-        </div>
       </div>
     </div>
   </div>
@@ -257,6 +327,6 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=7.0"></script>
+  <script src="js/app.js?v=8.0"></script>
 </body>
 </html>

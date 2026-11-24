@@ -1434,3 +1434,282 @@ h1 {
   padding: 10px 12px;
   margin-bottom: 12px;
 }
+
+/* ====================================================
+   MAIN PAGE TOP NAVIGATION TABS & RED DOT GAMIFICATION
+   ==================================================== */
+.main-tabs-nav {
+  display: flex;
+  gap: 12px;
+  margin: 20px 0;
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 12px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.main-nav-btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.main-nav-btn:hover {
+  background: #334155;
+  color: #fff;
+  border-color: #475569;
+}
+
+.main-nav-btn.active {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(6, 182, 212, 0.2));
+  color: #38bdf8;
+  border-color: #06b6d4;
+  box-shadow: 0 4px 14px rgba(6, 182, 212, 0.25);
+}
+
+.tab-icon {
+  font-size: 1.15rem;
+}
+
+.tab-lock-icon {
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+/* Red Dot Pulsing Notification (Motivates Zero-Inbox Completion) */
+.tab-red-dot {
+  width: 10px;
+  height: 10px;
+  background-color: #ef4444;
+  border-radius: 50%;
+  display: none;
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.8);
+  animation: pulse-red-dot 1.8s infinite;
+  margin-left: 2px;
+}
+
+.red-dot-circle {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background-color: #ef4444;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+  animation: pulse-red-dot 1.8s infinite;
+}
+
+@keyframes pulse-red-dot {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.8);
+  }
+  70% {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+.tab-badge-count {
+  background-color: #ef4444;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 12px;
+  margin-left: 2px;
+  display: none;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+}
+
+/* Task Status Badges on Cards */
+.task-status-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.3px;
+}
+
+.task-status-pending {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.task-status-done {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+/* SRS Status Badge */
+.srs-status-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.srs-status-badge.pending {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.srs-status-badge.passed {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+/* Main Review Page Header */
+.review-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.review-title-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.review-icon-box {
+  font-size: 2rem;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 12px;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.review-main-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.review-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* Review Progress Card & Bar */
+.review-progress-card {
+  min-width: 260px;
+  background: #0f172a;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px 16px;
+  flex: 1;
+  max-width: 360px;
+}
+
+.review-progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.84rem;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+.review-progress-track {
+  height: 8px;
+  background: #334155;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.review-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #34d399);
+  transition: width 0.4s ease;
+}
+
+.zero-inbox-status {
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.zero-inbox-status.pending {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+.zero-inbox-status.cleared {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+.main-due-vocab-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Chat Panel Shortcuts */
+.chat-quick-shortcuts {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #0f172a;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.chat-shortcut-btn {
+  flex: 1;
+  font-size: 0.74rem;
+  padding: 6px 10px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #38bdf8;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s ease;
+  font-weight: 600;
+}
+
+.chat-shortcut-btn:hover {
+  background: #334155;
+  color: #fff;
+}

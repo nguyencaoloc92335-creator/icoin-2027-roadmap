@@ -20,10 +20,40 @@ const state = {
   stats: null,
   isRecording: false,
   recognition: null,
-  dueVocab: []
+  dueVocab: [],
+  allVocab: null,
+  totalDueInitial: 0,
+  activeMainTab: 'lesson'
 };
 
-// DOM Elements
+// DOM Elements - Main Top Tabs & Views
+const mainTabsNav = document.getElementById('mainTabsNav');
+const mainTabLessonBtn = document.getElementById('mainTabLessonBtn');
+const mainTabReviewBtn = document.getElementById('mainTabReviewBtn');
+const mainTabNotebookBtn = document.getElementById('mainTabNotebookBtn');
+const viewLesson = document.getElementById('viewLesson');
+const viewReview = document.getElementById('viewReview');
+const viewNotebook = document.getElementById('viewNotebook');
+
+// Red Dot Gamification Badges
+const lessonRedDot = document.getElementById('lessonRedDot');
+const reviewRedDot = document.getElementById('reviewRedDot');
+const reviewCountBadge = document.getElementById('reviewCountBadge');
+const reviewProgressText = document.getElementById('reviewProgressText');
+const reviewProgressRatio = document.getElementById('reviewProgressRatio');
+const reviewZeroInboxBadge = document.getElementById('reviewZeroInboxBadge');
+const reviewProgressFill = document.getElementById('reviewProgressFill');
+const mainDueVocabList = document.getElementById('mainDueVocabList');
+
+// Main Notebook Elements (Tab 3)
+const mainNotebookAuthLock = document.getElementById('mainNotebookAuthLock');
+const mainNotebookContent = document.getElementById('mainNotebookContent');
+const mainNotebookSearchInput = document.getElementById('mainNotebookSearchInput');
+const mainNotebookTotalCount = document.getElementById('mainNotebookTotalCount');
+const mainNotebookListContainer = document.getElementById('mainNotebookListContainer');
+const btnOpenAuthFromMainNotebook = document.getElementById('btnOpenAuthFromMainNotebook');
+
+// Header & Common Elements
 const authStatusBtn = document.getElementById('authStatusBtn');
 const authBanner = document.getElementById('authBanner');
 const tokenInput = document.getElementById('tokenInput');
@@ -46,7 +76,7 @@ const shortcutModal = document.getElementById('shortcutModal');
 const closeShortcutModalBtn = document.getElementById('closeShortcutModalBtn');
 const openShortcutGuideBtn = document.getElementById('openShortcutGuideBtn');
 
-// Chat Widget Elements
+// Chat Widget Elements (Quick Translation & Word Practice)
 const chatBubbleBtn = document.getElementById('chatBubbleBtn');
 const chatWidgetPanel = document.getElementById('chatWidgetPanel');
 const closeChatWidgetBtn = document.getElementById('closeChatWidgetBtn');
@@ -70,6 +100,7 @@ const btnFillQuick = document.getElementById('btnFillQuick');
 const allVocabSearchInput = document.getElementById('allVocabSearchInput');
 const btnOpenAuthFromVocab = document.getElementById('btnOpenAuthFromVocab');
 const bubbleDueBadge = document.getElementById('bubbleDueBadge');
+const bubbleChatDueCount = document.getElementById('bubbleChatDueCount');
 const scheduleReminderCard = document.getElementById('scheduleReminderCard');
 const scheduleStatusText = document.getElementById('scheduleStatusText');
 const scheduleDueVocabText = document.getElementById('scheduleDueVocabText');
@@ -156,10 +187,29 @@ function setupEventListeners() {
     }
   });
 
-  // Schedule Card Quick Actions
+  // Schedule Card Quick Actions & Main Tabs
   btnOpenDueVocabNow?.addEventListener('click', () => {
-    chatWidgetPanel.classList.remove('hidden');
-    showChatTab('due');
+    window.switchMainTab('review');
+  });
+
+  btnOpenAuthFromMainNotebook?.addEventListener('click', () => {
+    authModal.classList.remove('hidden');
+  });
+
+  mainNotebookSearchInput?.addEventListener('input', () => {
+    const q = mainNotebookSearchInput.value.toLowerCase().trim();
+    if (!state.allVocab) return;
+    if (!q) {
+      renderMainNotebookList(state.allVocab);
+      return;
+    }
+    const filtered = state.allVocab.filter(item => {
+      const w = (item.word || '').toLowerCase();
+      const v = (item.vietnamese || '').toLowerCase();
+      const c = (item.technical_context || '').toLowerCase();
+      return w.includes(q) || v.includes(q) || c.includes(q);
+    });
+    renderMainNotebookList(filtered);
   });
 
   btnTestReminderPing?.addEventListener('click', async () => {
@@ -302,6 +352,179 @@ function setupEventListeners() {
   document.addEventListener('click', handleWordClick);
   document.addEventListener('dblclick', handleWordClick);
   document.addEventListener('touchend', handleWordClick);
+}
+
+// ====================================================
+// MAIN PAGE TOP NAVIGATION TABS & RED DOT GAMIFICATION
+// ====================================================
+window.switchMainTab = function(tabName) {
+  state.activeMainTab = tabName;
+  mainTabLessonBtn?.classList.remove('active');
+  mainTabReviewBtn?.classList.remove('active');
+  mainTabNotebookBtn?.classList.remove('active');
+
+  if (viewLesson) viewLesson.style.display = 'none';
+  if (viewReview) viewReview.style.display = 'none';
+  if (viewNotebook) viewNotebook.style.display = 'none';
+
+  if (tabName === 'lesson') {
+    mainTabLessonBtn?.classList.add('active');
+    if (viewLesson) viewLesson.style.display = 'block';
+  } else if (tabName === 'review') {
+    mainTabReviewBtn?.classList.add('active');
+    if (viewReview) viewReview.style.display = 'block';
+    loadDueVocab();
+  } else if (tabName === 'notebook') {
+    mainTabNotebookBtn?.classList.add('active');
+    if (viewNotebook) viewNotebook.style.display = 'block';
+    loadMainNotebook();
+  }
+
+  window.updateRedDots();
+};
+
+window.updateRedDots = function() {
+  // 1. Check Daily Lesson Tasks for today
+  const tasks = state.todayData?.tasks || [];
+  const incompleteLessonTasks = tasks.filter(t => !t.is_done).length;
+  if (lessonRedDot) {
+    lessonRedDot.style.display = (incompleteLessonTasks > 0) ? 'inline-block' : 'none';
+  }
+
+  // 2. Check Due Vocab for Review
+  const dueCount = (state.dueVocab || []).length;
+  if (reviewRedDot) {
+    reviewRedDot.style.display = (dueCount > 0) ? 'inline-block' : 'none';
+  }
+  if (reviewCountBadge) {
+    reviewCountBadge.style.display = (dueCount > 0) ? 'inline-block' : 'none';
+    reviewCountBadge.textContent = dueCount;
+  }
+
+  // Update Review Progress & Zero-Inbox Status
+  if (dueCount > state.totalDueInitial) {
+    state.totalDueInitial = dueCount;
+  }
+  const total = Math.max(state.totalDueInitial, dueCount);
+  const completed = Math.max(0, total - dueCount);
+  const pct = total > 0 ? Math.round((completed / total) * 100) : 100;
+
+  if (reviewProgressRatio) {
+    reviewProgressRatio.textContent = `${completed}/${total} từ (${pct}%)`;
+  }
+  if (reviewProgressFill) {
+    reviewProgressFill.style.width = `${pct}%`;
+  }
+  if (reviewZeroInboxBadge) {
+    if (dueCount === 0 && total > 0) {
+      reviewZeroInboxBadge.className = 'zero-inbox-status cleared';
+      reviewZeroInboxBadge.innerHTML = '🎉 Đã hoàn thành (0 chấm đỏ)!';
+    } else if (dueCount === 0) {
+      reviewZeroInboxBadge.className = 'zero-inbox-status cleared';
+      reviewZeroInboxBadge.innerHTML = '🎉 Không có từ nợ';
+    } else {
+      reviewZeroInboxBadge.className = 'zero-inbox-status pending';
+      reviewZeroInboxBadge.innerHTML = '<span class="red-dot-circle"></span> Còn từ chưa ôn';
+    }
+  }
+
+  // Update Schedule Card & Floating Bubble
+  if (scheduleDueVocabText) {
+    scheduleDueVocabText.textContent = dueCount > 0 ? `${dueCount} từ cần ôn tập` : '0 từ (Đã hoàn tất 🎉)';
+    scheduleDueVocabText.className = dueCount > 0 ? 'grid-val danger' : 'grid-val active';
+  }
+  if (scheduleDueBtnCount) {
+    scheduleDueBtnCount.textContent = dueCount;
+  }
+  if (bubbleDueBadge) {
+    bubbleDueBadge.textContent = dueCount;
+    bubbleDueBadge.style.display = dueCount > 0 ? 'inline-flex' : 'none';
+  }
+  if (bubbleChatDueCount) {
+    bubbleChatDueCount.textContent = dueCount;
+  }
+};
+
+async function loadMainNotebook() {
+  if (!state.isAuthenticated) {
+    if (mainNotebookAuthLock) mainNotebookAuthLock.style.display = 'block';
+    if (mainNotebookContent) mainNotebookContent.style.display = 'none';
+    return;
+  }
+
+  if (mainNotebookAuthLock) mainNotebookAuthLock.style.display = 'none';
+  if (mainNotebookContent) mainNotebookContent.style.display = 'block';
+  if (mainNotebookListContainer) {
+    mainNotebookListContainer.innerHTML = `<p style="color:#94a3b8; font-size:0.9rem; text-align:center; padding:20px 0;">⏳ Đang tải toàn bộ sổ từ vựng cá nhân từ máy chủ...</p>`;
+  }
+
+  try {
+    const res = await fetch(`${state.apiBase}/api/v1/vocab/all`, {
+      headers: getHeaders()
+    });
+    if (res.ok) {
+      state.allVocab = await res.json();
+      if (mainNotebookTotalCount) {
+        mainNotebookTotalCount.textContent = `Tổng: ${state.allVocab.length} từ`;
+      }
+      renderMainNotebookList(state.allVocab);
+    } else {
+      if (mainNotebookListContainer) {
+        mainNotebookListContainer.innerHTML = `<p style="color:#f87171; font-size:0.9rem;">Không tải được sổ từ vựng (${res.status}).</p>`;
+      }
+    }
+  } catch (e) {
+    if (mainNotebookListContainer) {
+      mainNotebookListContainer.innerHTML = `<p style="color:#f87171; font-size:0.9rem;">Lỗi kết nối máy chủ: ${e.message}</p>`;
+    }
+  }
+}
+
+function renderMainNotebookList(vocabArray) {
+  if (!mainNotebookListContainer) return;
+  if (!vocabArray || vocabArray.length === 0) {
+    mainNotebookListContainer.innerHTML = `<p style="color:#94a3b8; font-size:0.9rem; text-align:center; padding:30px 0;">Sổ từ vựng đang trống. Hãy tra và lưu các từ mới!</p>`;
+    return;
+  }
+
+  mainNotebookListContainer.innerHTML = '';
+  vocabArray.forEach((item, index) => {
+    const card = document.createElement('div');
+    card.className = 'all-vocab-item-card';
+    const wordJsSafe = item.word.replace(/'/g, "\\'");
+    const srs = item.srs || {};
+    const safeWord = escapeHtml(item.word);
+
+    card.innerHTML = `
+      <div class="all-vocab-head">
+        <div>
+          <span class="all-vocab-word">${safeWord}</span>
+          ${item.phonetic ? `<span class="all-vocab-phonetic">${escapeHtml(item.phonetic)}</span>` : ''}
+          ${item.part_of_speech ? `<span class="badge" style="font-size:0.75rem; background:#0f172a; color:#38bdf8; margin-left:6px;">${escapeHtml(item.part_of_speech)}</span>` : ''}
+        </div>
+        <button class="btn-sm" onclick="playTTS('${wordJsSafe}', this)">🔊 Nghe</button>
+      </div>
+      <div class="all-vocab-meaning">🇻🇳 ${escapeHtml(item.vietnamese || '')}</div>
+      ${item.technical_context ? `<div style="font-size:0.82rem; color:#94a3b8; line-height:1.4; margin-top:4px;">💡 <strong>Bối cảnh:</strong> ${escapeHtml(item.technical_context)}</div>` : ''}
+      
+      <div class="speech-test-card" style="margin-top:8px; padding:8px 12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:0.8rem; color:#f1f5f9; font-weight:600;">🎙️ Luyện đọc từ này (≥ 80%):</span>
+          <button class="btn-record-word" style="padding:4px 10px; font-size:0.75rem;" id="btn-main-all-speech-${index}" onclick="window.testWordPronunciation('${wordJsSafe}', 'btn-main-all-speech-${index}', 'main-all-speech-res-${index}')">
+            🎙️ Đọc kiểm tra
+          </button>
+        </div>
+        <div id="main-all-speech-res-${index}"></div>
+      </div>
+
+      <div class="all-vocab-meta">
+        <span>📅 Chu kỳ tiếp theo: <strong>${escapeHtml(srs.next_review || 'Hôm nay')}</strong> (Giãn ${srs.interval_days || 1} ngày)</span>
+        <span>${srs.revisits ? `🔄 Đã gặp lại: ${srs.revisits} lần` : `Lần ôn: #${srs.repetition || 0}`}</span>
+      </div>
+    `;
+
+    mainNotebookListContainer.appendChild(card);
+  });
 }
 
 function showChatTab(tabName) {
@@ -451,7 +674,8 @@ async function initAuth() {
       state.deviceUUID = data.device_uuid || '';
       showAuthenticated();
       await loadInitialData();
-      loadDueVocab();
+      await loadDueVocab();
+      window.updateRedDots();
       return;
     } else {
       showUnauthenticated('Token không hợp lệ hoặc đã bị thu hồi');
@@ -476,6 +700,9 @@ function showUnauthenticated(msg) {
     const el = document.getElementById('authBannerMsg');
     if (el) el.textContent = msg;
   }
+  loadDueVocab();
+  window.updateRedDots();
+}
 }
 
 function saveToken(token) {
@@ -727,6 +954,10 @@ function renderDayContent(day) {
           <div class="task-badges">
             <span class="skill-tag skill-${task.type}">${task.type}</span>
             <span style="font-size:0.75rem; color:#94a3b8;">⏱️ ${task.minutes} phút</span>
+            ${task.is_done 
+              ? `<span class="task-status-badge task-status-done" id="task-badge-${task.id}">✅ Đã hoàn thành</span>`
+              : `<span class="task-status-badge task-status-pending" id="task-badge-${task.id}"><span class="red-dot-circle"></span> Chưa hoàn thành</span>`
+            }
           </div>
           <div class="task-title">#${task.id}. ${escapeHtml(task.title)}</div>
         </div>
@@ -775,6 +1006,8 @@ function renderDayContent(day) {
 
     tasksContainer.appendChild(card);
   });
+
+  window.updateRedDots();
 }
 
 async function submitTaskForEvaluation(currentDay, taskId, btn, card) {
@@ -819,6 +1052,14 @@ async function submitTaskForEvaluation(currentDay, taskId, btn, card) {
         card.classList.add('done');
         const cb = card.querySelector('.task-checkbox');
         if (cb) cb.checked = true;
+        const task = (state.todayData?.tasks || []).find(t => t.id === taskId);
+        if (task) task.is_done = true;
+        const badge = card.querySelector(`#task-badge-${taskId}`);
+        if (badge) {
+          badge.className = 'task-status-badge task-status-done';
+          badge.innerHTML = '✅ Đã hoàn thành';
+        }
+        window.updateRedDots();
       }
     } else {
       alert('Lỗi kết nối máy chủ khi nộp bài.');
@@ -849,6 +1090,19 @@ async function toggleTask(taskId, card, cb) {
       cb.checked = data.is_done;
       if (data.is_done) card.classList.add('done');
       else card.classList.remove('done');
+      const badge = card.querySelector(`#task-badge-${taskId}`);
+      if (badge) {
+        if (data.is_done) {
+          badge.className = 'task-status-badge task-status-done';
+          badge.innerHTML = '✅ Đã hoàn thành';
+        } else {
+          badge.className = 'task-status-badge task-status-pending';
+          badge.innerHTML = '<span class="red-dot-circle"></span> Chưa hoàn thành';
+        }
+      }
+      const task = (state.todayData?.tasks || []).find(t => t.id === taskId);
+      if (task) task.is_done = data.is_done;
+      window.updateRedDots();
     }
   } catch (e) {
     console.error('Failed to toggle task', e);
@@ -870,6 +1124,14 @@ async function saveNote(taskId, note) {
         card.classList.add('done');
         const cb = card.querySelector('.task-checkbox');
         if (cb) cb.checked = true;
+        const task = (state.todayData?.tasks || []).find(t => t.id === taskId);
+        if (task) task.is_done = true;
+        const badge = card.querySelector(`#task-badge-${taskId}`);
+        if (badge) {
+          badge.className = 'task-status-badge task-status-done';
+          badge.innerHTML = '✅ Đã hoàn thành';
+        }
+        window.updateRedDots();
       }
     }
   } catch (e) {
@@ -1003,6 +1265,7 @@ async function loadDueVocab() {
       }
 
       renderDueVocabList();
+      window.updateRedDots();
     }
   } catch (e) {
     console.error('Error loading due vocab', e);
@@ -1010,16 +1273,24 @@ async function loadDueVocab() {
 }
 
 function renderDueVocabList() {
+  const container = mainDueVocabList || dueVocabListContainer;
+  if (!container) return;
+
   if (!state.dueVocab || state.dueVocab.length === 0) {
-    dueVocabListContainer.innerHTML = `
-      <p style="color:#94a3b8; font-size:0.88rem; text-align:center; padding:20px 0;">
-        🎉 Không có từ vựng nào cần ôn hôm nay! Toàn bộ lịch nhắc ngắt quãng đã hoàn tất.
-      </p>
+    container.innerHTML = `
+      <div style="background:#1e293b; border:1px solid #334155; border-radius:12px; padding:36px 20px; text-align:center;">
+        <div style="font-size:2.6rem; margin-bottom:12px;">🎉</div>
+        <h3 style="color:#34d399; font-size:1.25rem; margin-bottom:8px;">Tuyệt vời! Toàn bộ từ vựng đã được ôn tập xong!</h3>
+        <p style="color:#94a3b8; font-size:0.92rem; max-width:480px; margin:0 auto; line-height:1.5;">
+          Dấu chấm đỏ nhắc nhở đã được xoá sạch. Thuật toán Ebbinghaus SM-2 sẽ tự động xếp lịch ôn tập đợt kế tiếp cho bạn vào sáng mai.
+        </p>
+      </div>
     `;
+    window.updateRedDots();
     return;
   }
 
-  dueVocabListContainer.innerHTML = '';
+  container.innerHTML = '';
   state.dueVocab.forEach(item => {
     // Pick ONE random question from the 4 styles to keep review non-repetitive and engaging
     const questions = item.quiz_questions || [];
@@ -1043,8 +1314,11 @@ function renderDueVocabList() {
     }
 
     box.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span class="srs-badge-type">Dạng bài: ${q.type}</span>
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="srs-status-badge pending" id="srs-badge-${safeId}"><span class="red-dot-circle"></span> Cần ôn tập</span>
+          <span class="srs-badge-type">Dạng bài: ${q.type}</span>
+        </div>
         <span style="font-size:0.75rem; color:#94a3b8;">Lần nhắc: #${item.srs ? item.srs.repetition + 1 : 1}</span>
       </div>
       ${questionContent}
@@ -1092,7 +1366,7 @@ function renderDueVocabList() {
       </div>
     `;
 
-    dueVocabListContainer.appendChild(box);
+    container.appendChild(box);
   });
 }
 
@@ -1552,11 +1826,19 @@ window.gradeReview = async function(word, score, safeId) {
     if (res.ok) {
       const box = document.getElementById(`srs-box-${targetId}`) || document.getElementById(`srs-box-${word}`);
       if (box) {
-        box.innerHTML = `<div style="color:#34d399; font-size:0.85rem; padding:8px 0;">✅ Đã cập nhật chu kỳ ôn tập tiếp theo!</div>`;
-        setTimeout(() => {
-          loadDueVocab();
-        }, 1200);
+        box.innerHTML = `
+          <div style="color:#34d399; font-weight:700; font-size:0.95rem; padding:16px; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.25); border-radius:8px; display:flex; align-items:center; gap:8px;">
+            <span style="font-size:1.2rem;">✅</span>
+            <span>Đã hoàn thành ôn tập từ "<strong>${escapeHtml(word)}</strong>"! Đã xoá 1 chấm đỏ.</span>
+          </div>
+        `;
       }
+      // Optimistically remove from state.dueVocab and immediately refresh red dots
+      state.dueVocab = (state.dueVocab || []).filter(v => v.word.toLowerCase() !== word.toLowerCase());
+      window.updateRedDots();
+      setTimeout(() => {
+        loadDueVocab();
+      }, 1200);
     }
   } catch (e) {
     alert('Lỗi cập nhật tiến trình ôn tập.');
