@@ -703,7 +703,6 @@ function showUnauthenticated(msg) {
   loadDueVocab();
   window.updateRedDots();
 }
-}
 
 function saveToken(token) {
   state.token = token.trim();
