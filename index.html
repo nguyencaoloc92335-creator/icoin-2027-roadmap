@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ICOIN 2027 · Lộ trình Tiếng Anh Chuyên Ngành (AI, OWC, OCC, Firmware, IoT)</title>
-  <link rel="stylesheet" href="css/style.css?v=8.1">
+  <link rel="stylesheet" href="css/style.css?v=9.0">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
 </head>
 <body>
@@ -107,6 +107,10 @@
         <span class="tab-title-text">Lộ Trình Bài Học</span>
         <span class="tab-red-dot" id="lessonRedDot" title="Có nhiệm vụ học hôm nay chưa hoàn thành"></span>
       </button>
+      <button class="main-nav-btn" id="mainTabTranslateBtn" onclick="window.switchMainTab('translate')">
+        <span class="tab-icon">🔍</span>
+        <span class="tab-title-text">Dịch & Tra Từ Mới</span>
+      </button>
       <button class="main-nav-btn" id="mainTabReviewBtn" onclick="window.switchMainTab('review')">
         <span class="tab-icon">🧠</span>
         <span class="tab-title-text">Ôn Tập Spaced Repetition</span>
@@ -151,7 +155,42 @@
       </div>
     </div>
 
-    <!-- TAB 2: ÔN TẬP SPACED REPETITION (SRS) -->
+    <!-- TAB 2: DỊCH & TRA TỪ MỚI (AI DICTIONARY & TYPING PRACTICE) -->
+    <div class="main-tab-view" id="viewTranslate" style="display: none;">
+      <div class="review-page-header">
+        <div class="review-title-group">
+          <div class="review-icon-box">🔍</div>
+          <div>
+            <h2 class="review-main-title">Tra Cứu & Dịch Thuật Ngữ Kỹ Thuật (AI Dictionary)</h2>
+            <p class="review-subtitle">Tra từ mới, gõ lại mặt chữ để ghi nhớ, nhận dạng phiên âm IPA, bối cảnh ICOIN và tự động lưu vào lịch nhắc Spaced Repetition</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="mainTargetWordBox" class="target-word-card" style="display: none; margin-bottom: 16px;">
+        <div class="target-word-header">
+          <span>🎯 Từ cần gõ để ghi nhớ:</span>
+          <button type="button" class="btn-fill-quick" id="btnMainFillQuick" title="Điền nhanh từ này">Điền nhanh ✍️</button>
+        </div>
+        <div class="target-word-display" id="mainTargetWordDisplay"></div>
+        <div class="typing-status" id="mainTypingStatus">Hãy gõ lại từ này vào ô bên dưới để nhớ mặt chữ...</div>
+      </div>
+
+      <div class="vocab-input-box" style="margin-bottom: 16px;">
+        <input type="text" id="mainVocabInput" placeholder="Nhập từ mới hoặc bôi đen/chọn bất kỳ từ nào trên web để dịch..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+        <button id="mainVocabTranslateBtn" class="btn-primary" style="white-space: nowrap; padding: 12px 24px; font-weight: 700;">Dịch & Lưu Vào Sổ</button>
+      </div>
+
+      <div id="mainVocabLoading" style="display: none; text-align: center; color: var(--accent-cyan); font-size: 0.95rem; padding: 20px;">
+        ⏳ Quản gia AI đang phân tích thuật ngữ chuyên ngành và tra cứu phiên âm chuẩn...
+      </div>
+
+      <div id="mainVocabResultContainer">
+        <!-- Rendered translation result -->
+      </div>
+    </div>
+
+    <!-- TAB 3: ÔN TẬP SPACED REPETITION (SRS) -->
     <div class="main-tab-view" id="viewReview" style="display: none;">
       <div class="review-page-header">
         <div class="review-title-group">
@@ -327,6 +366,30 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=8.1"></script>
+  <!-- Quick Word Translation Popover (Click/Select Any Word In Review/Questions/Answers) -->
+  <div id="quickWordPopover" class="quick-word-popover hidden">
+    <div class="popover-arrow"></div>
+    <div class="popover-content">
+      <div class="popover-header">
+        <div style="display: flex; align-items: baseline; gap: 6px; overflow: hidden;">
+          <strong class="popover-word" id="popoverWord">...</strong>
+          <span class="popover-ipa" id="popoverIpa"></span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+          <button type="button" class="popover-btn-icon" id="popoverTtsBtn" title="Nghe phát âm chuẩn">🔊</button>
+          <button type="button" class="popover-btn-icon" id="popoverCloseBtn" title="Đóng">✕</button>
+        </div>
+      </div>
+      <div class="popover-body" id="popoverBody">
+        <div class="popover-loading">⏳ Đang dịch nghĩa...</div>
+      </div>
+      <div class="popover-footer">
+        <button type="button" class="btn-sm popover-save-btn" id="popoverSaveBtn">💾 Lưu vào Sổ</button>
+        <button type="button" class="btn-sm popover-tab-btn" id="popoverOpenTabBtn">🔍 Xem chi tiết</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js?v=9.0"></script>
 </body>
 </html>

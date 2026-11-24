@@ -29,11 +29,33 @@ const state = {
 // DOM Elements - Main Top Tabs & Views
 const mainTabsNav = document.getElementById('mainTabsNav');
 const mainTabLessonBtn = document.getElementById('mainTabLessonBtn');
+const mainTabTranslateBtn = document.getElementById('mainTabTranslateBtn');
 const mainTabReviewBtn = document.getElementById('mainTabReviewBtn');
 const mainTabNotebookBtn = document.getElementById('mainTabNotebookBtn');
 const viewLesson = document.getElementById('viewLesson');
+const viewTranslate = document.getElementById('viewTranslate');
 const viewReview = document.getElementById('viewReview');
 const viewNotebook = document.getElementById('viewNotebook');
+
+// Main Tab Translate Elements (Tab 2)
+const mainTargetWordBox = document.getElementById('mainTargetWordBox');
+const mainTargetWordDisplay = document.getElementById('mainTargetWordDisplay');
+const mainTypingStatus = document.getElementById('mainTypingStatus');
+const btnMainFillQuick = document.getElementById('btnMainFillQuick');
+const mainVocabInput = document.getElementById('mainVocabInput');
+const mainVocabTranslateBtn = document.getElementById('mainVocabTranslateBtn');
+const mainVocabLoading = document.getElementById('mainVocabLoading');
+const mainVocabResultContainer = document.getElementById('mainVocabResultContainer');
+
+// Quick Word Translation Popover
+const quickWordPopover = document.getElementById('quickWordPopover');
+const popoverWord = document.getElementById('popoverWord');
+const popoverIpa = document.getElementById('popoverIpa');
+const popoverTtsBtn = document.getElementById('popoverTtsBtn');
+const popoverCloseBtn = document.getElementById('popoverCloseBtn');
+const popoverBody = document.getElementById('popoverBody');
+const popoverSaveBtn = document.getElementById('popoverSaveBtn');
+const popoverOpenTabBtn = document.getElementById('popoverOpenTabBtn');
 
 // Red Dot Gamification Badges
 const lessonRedDot = document.getElementById('lessonRedDot');
@@ -317,13 +339,117 @@ function setupEventListeners() {
     }
   });
 
-  // Quick fill button
+  // Quick fill button in floating chat
   btnFillQuick?.addEventListener('click', () => {
     const target = vocabInput?.dataset.targetWord || '';
     if (target && vocabInput) {
       vocabInput.value = target;
       vocabInput.dispatchEvent(new Event('input'));
       vocabInput.focus();
+    }
+  });
+
+  // Main Tab Vocab Translation & Typing (Tab 2)
+  mainVocabTranslateBtn?.addEventListener('click', () => {
+    const w = mainVocabInput?.value.trim();
+    if (w) translateVocab(w);
+  });
+
+  mainVocabInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const w = mainVocabInput?.value.trim();
+      if (w) translateVocab(w);
+    }
+  });
+
+  mainVocabInput?.addEventListener('input', () => {
+    const target = (mainVocabInput.dataset.targetWord || '').trim();
+    if (!target || !mainTargetWordDisplay || !mainTypingStatus) return;
+
+    const val = mainVocabInput.value;
+    if (!val) {
+      mainTargetWordDisplay.textContent = target;
+      mainTypingStatus.className = 'typing-status';
+      mainTypingStatus.textContent = 'Hãy gõ lại từ trên vào ô bên dưới để nhớ mặt chữ...';
+      return;
+    }
+
+    let matchedHtml = '';
+    let isMatchSoFar = true;
+
+    for (let i = 0; i < target.length; i++) {
+      const targetChar = target[i];
+      const typedChar = val[i];
+
+      if (typedChar === undefined) {
+        matchedHtml += `<span class="char-untyped">${escapeHtml(targetChar)}</span>`;
+      } else if (typedChar.toLowerCase() === targetChar.toLowerCase()) {
+        matchedHtml += `<span class="char-matched">${escapeHtml(targetChar)}</span>`;
+      } else {
+        isMatchSoFar = false;
+        matchedHtml += `<span style="color:#ef4444; text-decoration:underline;">${escapeHtml(targetChar)}</span>`;
+      }
+    }
+
+    mainTargetWordDisplay.innerHTML = matchedHtml;
+
+    if (val.toLowerCase() === target.toLowerCase()) {
+      mainTypingStatus.className = 'typing-status correct';
+      mainTypingStatus.textContent = '✅ Rất tốt! Bạn đã gõ đúng 100%. Bấm "Dịch & Lưu Vào Sổ" để tiếp tục!';
+    } else if (!isMatchSoFar) {
+      mainTypingStatus.className = 'typing-status mismatch';
+      mainTypingStatus.textContent = '⚠️ Có ký tự chưa khớp. Hãy kiểm tra lại từ mẫu ở trên!';
+    } else {
+      mainTypingStatus.className = 'typing-status';
+      mainTypingStatus.textContent = `Đang gõ đúng: ${val.length}/${target.length} ký tự...`;
+    }
+  });
+
+  btnMainFillQuick?.addEventListener('click', () => {
+    const target = mainVocabInput?.dataset.targetWord || '';
+    if (target && mainVocabInput) {
+      mainVocabInput.value = target;
+      mainVocabInput.dispatchEvent(new Event('input'));
+      mainVocabInput.focus();
+    }
+  });
+
+  // Quick Word Popover Actions
+  popoverCloseBtn?.addEventListener('click', () => {
+    hideQuickWordPopover();
+  });
+
+  popoverOpenTabBtn?.addEventListener('click', () => {
+    const w = quickWordPopover?.dataset.currentWord;
+    hideQuickWordPopover();
+    window.switchMainTab('translate');
+    if (w) {
+      setWordToPractice(w);
+      translateVocab(w);
+    }
+  });
+
+  popoverSaveBtn?.addEventListener('click', async () => {
+    const w = quickWordPopover?.dataset.currentWord;
+    if (!w) return;
+    popoverSaveBtn.disabled = true;
+    popoverSaveBtn.textContent = '⏳ Đang lưu...';
+    try {
+      await translateVocab(w);
+      popoverSaveBtn.textContent = '✅ Đã lưu vào sổ!';
+      setTimeout(() => hideQuickWordPopover(), 1000);
+    } catch (_) {
+      popoverSaveBtn.textContent = '❌ Lỗi lưu';
+      popoverSaveBtn.disabled = false;
+    }
+  });
+
+  // Close popover when clicking outside
+  document.addEventListener('click', (e) => {
+    if (quickWordPopover && !quickWordPopover.classList.contains('hidden')) {
+      if (!e.target.closest('#quickWordPopover')) {
+        hideQuickWordPopover();
+      }
     }
   });
 
@@ -360,16 +486,22 @@ function setupEventListeners() {
 window.switchMainTab = function(tabName) {
   state.activeMainTab = tabName;
   mainTabLessonBtn?.classList.remove('active');
+  mainTabTranslateBtn?.classList.remove('active');
   mainTabReviewBtn?.classList.remove('active');
   mainTabNotebookBtn?.classList.remove('active');
 
   if (viewLesson) viewLesson.style.display = 'none';
+  if (viewTranslate) viewTranslate.style.display = 'none';
   if (viewReview) viewReview.style.display = 'none';
   if (viewNotebook) viewNotebook.style.display = 'none';
 
   if (tabName === 'lesson') {
     mainTabLessonBtn?.classList.add('active');
     if (viewLesson) viewLesson.style.display = 'block';
+  } else if (tabName === 'translate') {
+    mainTabTranslateBtn?.classList.add('active');
+    if (viewTranslate) viewTranslate.style.display = 'block';
+    setTimeout(() => mainVocabInput?.focus(), 120);
   } else if (tabName === 'review') {
     mainTabReviewBtn?.classList.add('active');
     if (viewReview) viewReview.style.display = 'block';
@@ -563,11 +695,26 @@ function getWordAtPoint(x, y) {
       range.collapse(true);
     }
   }
-  if (!range || !range.startContainer || range.startContainer.nodeType !== Node.TEXT_NODE) {
+  if (!range || !range.startContainer) {
     return '';
   }
-  const text = range.startContainer.textContent;
-  const offset = range.startOffset;
+  let node = range.startContainer;
+  let offset = range.startOffset;
+  if (node.nodeType === Node.ELEMENT_NODE) {
+    if (node.childNodes && node.childNodes[offset] && node.childNodes[offset].nodeType === Node.TEXT_NODE) {
+      node = node.childNodes[offset];
+      offset = 0;
+    } else if (node.firstChild && node.firstChild.nodeType === Node.TEXT_NODE) {
+      node = node.firstChild;
+      offset = 0;
+    } else {
+      return '';
+    }
+  }
+  if (!node || node.nodeType !== Node.TEXT_NODE) {
+    return '';
+  }
+  const text = node.textContent;
   if (offset > text.length) return '';
 
   const isWordChar = (c) => /[a-zA-Z0-9_\-]/.test(c);
@@ -588,34 +735,173 @@ function getWordAtPoint(x, y) {
   return text.slice(start, end).trim();
 }
 
+let popoverAbortController = null;
+
+function showQuickWordPopover(word, clientX, clientY) {
+  if (!quickWordPopover || !word) return;
+  const cleaned = word.trim().replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
+  if (!cleaned || cleaned.length < 2) return;
+
+  quickWordPopover.dataset.currentWord = cleaned;
+
+  if (popoverWord) popoverWord.textContent = cleaned;
+  if (popoverIpa) popoverIpa.textContent = '';
+  if (popoverBody) popoverBody.innerHTML = '<div class="popover-loading">⏳ Quản gia AI đang tra nghĩa...</div>';
+  if (popoverSaveBtn) {
+    popoverSaveBtn.disabled = false;
+    popoverSaveBtn.textContent = '💾 Lưu vào Sổ';
+  }
+
+  // Show & calculate coordinates
+  quickWordPopover.classList.remove('hidden');
+  const popoverWidth = 320;
+  const popoverHeight = 170;
+  let posX = (clientX || window.innerWidth / 2) - popoverWidth / 2;
+  let posY = (clientY || window.innerHeight / 2) + 15;
+
+  if (posX < 10) posX = 10;
+  if (posX + popoverWidth > window.innerWidth - 10) posX = window.innerWidth - popoverWidth - 10;
+  if (posY + popoverHeight > window.innerHeight - 20) {
+    posY = (clientY || window.innerHeight / 2) - popoverHeight - 15;
+  }
+  if (posY < 10) posY = 10;
+
+  quickWordPopover.style.left = `${Math.round(posX)}px`;
+  quickWordPopover.style.top = `${Math.round(posY)}px`;
+
+  // Bind audio button
+  if (popoverTtsBtn) {
+    popoverTtsBtn.onclick = (ev) => {
+      ev.stopPropagation();
+      playTTS(cleaned, popoverTtsBtn);
+    };
+  }
+
+  // Check local caches first
+  const cached = (state.dueVocab || []).find(v => v.word.toLowerCase() === cleaned.toLowerCase()) ||
+                 (state.allVocab || []).find(v => v.word.toLowerCase() === cleaned.toLowerCase());
+  if (cached) {
+    renderPopoverContent(cached);
+    return;
+  }
+
+  if (popoverAbortController) {
+    try { popoverAbortController.abort(); } catch (_) {}
+  }
+  popoverAbortController = new AbortController();
+
+  fetch(`${state.apiBase}/api/v1/vocab/translate`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({ word: cleaned }),
+    signal: popoverAbortController.signal
+  })
+  .then(res => res.json())
+  .then(data => {
+    renderPopoverContent(data);
+  })
+  .catch(err => {
+    if (err.name !== 'AbortError' && popoverBody) {
+      popoverBody.innerHTML = `<span style="color:#f87171; font-size:0.8rem;">Lỗi tra cứu: ${escapeHtml(err.message)}</span>`;
+    }
+  });
+}
+
+function renderPopoverContent(data) {
+  if (popoverIpa) popoverIpa.textContent = data.phonetic || '';
+  if (popoverBody) {
+    let html = `<div class="popover-meaning">🇻🇳 ${escapeHtml(data.vietnamese || '')}</div>`;
+    if (data.technical_context) {
+      html += `<div class="popover-context">💡 <strong>Bối cảnh:</strong> ${escapeHtml(data.technical_context)}</div>`;
+    }
+    if (data.example_sentence) {
+      html += `<div style="font-size:0.78rem; color:#cbd5e1; margin-top:4px;">📝 <em>"${escapeHtml(data.example_sentence)}"</em></div>`;
+    }
+    popoverBody.innerHTML = html;
+  }
+}
+
+function hideQuickWordPopover() {
+  if (quickWordPopover) {
+    quickWordPopover.classList.add('hidden');
+  }
+}
+
+// Global helper to quickly translate any word and pop up dict
+window.quickTranslateWord = function(word, ev) {
+  if (ev && typeof ev.stopPropagation === 'function') {
+    ev.stopPropagation();
+  }
+  let clientX = ev ? ev.clientX : undefined;
+  let clientY = ev ? ev.clientY : undefined;
+  if (clientX === undefined && ev && ev.changedTouches && ev.changedTouches.length > 0) {
+    clientX = ev.changedTouches[0].clientX;
+    clientY = ev.changedTouches[0].clientY;
+  }
+  showQuickWordPopover(word, clientX || window.innerWidth / 2, clientY || window.innerHeight / 2);
+  setWordToPractice(word);
+};
+
 function handleWordClick(e) {
-  // Ignore clicks inside chat widget, modals, form controls, buttons
+  // Ignore clicks inside popover, modals, rating buttons, or form editing fields
   if (e && e.target && e.target.closest && (
-    e.target.closest('#chatWidgetPanel') || 
-    e.target.closest('#chatBubbleBtn') || 
+    e.target.closest('#quickWordPopover') || 
     e.target.closest('.modal-card') ||
-    e.target.closest('button') ||
+    e.target.closest('.btn-record-word') ||
+    e.target.closest('.btn-rate') ||
+    e.target.closest('.main-nav-btn') ||
+    e.target.closest('.chat-bubble-toggle') ||
     e.target.tagName === 'INPUT' || 
-    e.target.tagName === 'TEXTAREA' || 
-    e.target.tagName === 'BUTTON' ||
-    e.target.tagName === 'A'
+    e.target.tagName === 'TEXTAREA'
   )) {
     return;
   }
 
-  // 1. Check if user made a drag selection
-  const sel = window.getSelection();
-  const selectedText = sel ? sel.toString().trim() : '';
-  if (selectedText && selectedText.length >= 2 && selectedText.length <= 40 && !selectedText.includes('\n')) {
-    setWordToPractice(selectedText);
-    return;
+  let clientX = e.clientX;
+  let clientY = e.clientY;
+  if (clientX === undefined && e.changedTouches && e.changedTouches.length > 0) {
+    clientX = e.changedTouches[0].clientX;
+    clientY = e.changedTouches[0].clientY;
+  } else if (clientX === undefined && e.touches && e.touches.length > 0) {
+    clientX = e.touches[0].clientX;
+    clientY = e.touches[0].clientY;
   }
 
-  // 2. Extract word at click position (single click or double click on Edge PC & mobile)
-  if (typeof e.clientX === 'number' && typeof e.clientY === 'number') {
-    const clickedWord = getWordAtPoint(e.clientX, e.clientY);
+  // 1. Check if user made a drag selection anywhere (prompts, options, answer reveals, lessons)
+  const sel = window.getSelection();
+  const selectedText = sel ? sel.toString().trim() : '';
+  if (selectedText && selectedText.length >= 2 && selectedText.length <= 50 && !selectedText.includes('\n')) {
+    const cleaned = selectedText.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
+    if (cleaned && /[a-zA-Z]/.test(cleaned)) {
+      showQuickWordPopover(cleaned, clientX || 150, clientY || 150);
+      setWordToPractice(cleaned);
+      return;
+    }
+  }
+
+  // 2. Check if clicked on a clickable-term or element with data-word
+  if (e.target && e.target.closest) {
+    const termEl = e.target.closest('.clickable-term') || e.target.closest('[data-word]');
+    if (termEl) {
+      const termWord = termEl.dataset.word || termEl.textContent.trim();
+      const cleaned = termWord.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
+      if (cleaned && /[a-zA-Z]/.test(cleaned)) {
+        showQuickWordPopover(cleaned, clientX, clientY);
+        setWordToPractice(cleaned);
+        return;
+      }
+    }
+  }
+
+  // 3. Extract word at click position (single click or double click on Edge PC, Chrome, iPhone Safari)
+  if (typeof clientX === 'number' && typeof clientY === 'number') {
+    const clickedWord = getWordAtPoint(clientX, clientY);
     if (clickedWord && clickedWord.length >= 2 && /[a-zA-Z]/.test(clickedWord)) {
-      setWordToPractice(clickedWord);
+      const cleaned = clickedWord.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
+      if (cleaned) {
+        showQuickWordPopover(cleaned, clientX, clientY);
+        setWordToPractice(cleaned);
+      }
     }
   }
 }
@@ -625,27 +911,30 @@ function setWordToPractice(rawWord) {
   const cleaned = rawWord.trim().replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
   if (!cleaned || cleaned.length < 2) return;
 
-  // 1. Open chat widget if closed
-  if (chatWidgetPanel.classList.contains('hidden')) {
-    chatWidgetPanel.classList.remove('hidden');
+  // Update Main Tab 2 (Dịch & Tra Từ Mới)
+  if (mainTargetWordBox && mainTargetWordDisplay && mainTypingStatus) {
+    mainTargetWordDisplay.textContent = cleaned;
+    mainTypingStatus.className = 'typing-status';
+    mainTypingStatus.textContent = 'Hãy gõ lại từ trên vào ô bên dưới để nhớ mặt chữ...';
+    mainTargetWordBox.style.display = 'block';
+  }
+  if (mainVocabInput) {
+    mainVocabInput.value = '';
+    mainVocabInput.dataset.targetWord = cleaned;
+    mainVocabInput.placeholder = `Gõ lại: ${cleaned}`;
   }
 
-  // 2. Switch to Translate tab
-  showChatTab('translate');
-
-  // 3. Update target word display card
+  // Also update floating chat widget
   if (targetWordBox && targetWordDisplay && typingStatus) {
     targetWordDisplay.textContent = cleaned;
     typingStatus.className = 'typing-status';
     typingStatus.textContent = 'Hãy gõ lại từ trên vào ô bên dưới để nhớ mặt chữ...';
     targetWordBox.style.display = 'block';
   }
-
   if (vocabInput) {
     vocabInput.value = '';
     vocabInput.dataset.targetWord = cleaned;
     vocabInput.placeholder = `Gõ lại: ${cleaned}`;
-    setTimeout(() => vocabInput.focus(), 150);
   }
 }
 
@@ -1149,9 +1438,16 @@ async function translateVocab(word) {
     vocabTranslateBtn.disabled = true;
     vocabTranslateBtn.textContent = '⏳ Đang tra...';
   }
+  if (mainVocabTranslateBtn) {
+    mainVocabTranslateBtn.disabled = true;
+    mainVocabTranslateBtn.textContent = '⏳ Đang tra...';
+  }
   if (vocabInput) vocabInput.disabled = true;
-  vocabLoading.style.display = 'block';
-  vocabResultContainer.innerHTML = '';
+  if (mainVocabInput) mainVocabInput.disabled = true;
+  if (vocabLoading) vocabLoading.style.display = 'block';
+  if (mainVocabLoading) mainVocabLoading.style.display = 'block';
+  if (vocabResultContainer) vocabResultContainer.innerHTML = '';
+  if (mainVocabResultContainer) mainVocabResultContainer.innerHTML = '';
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 9000);
@@ -1172,23 +1468,35 @@ async function translateVocab(word) {
       // Asynchronously refresh due list without blocking UI
       setTimeout(() => loadDueVocab(), 400);
     } else {
-      vocabResultContainer.innerHTML = `<p style="color:#f87171; font-size:0.85rem;">Lỗi kết nối Quản gia dịch thuật (${res.status}). Vui lòng bấm thử lại.</p>`;
+      const errHtml = `<p style="color:#f87171; font-size:0.85rem;">Lỗi kết nối Quản gia dịch thuật (${res.status}). Vui lòng bấm thử lại.</p>`;
+      if (vocabResultContainer) vocabResultContainer.innerHTML = errHtml;
+      if (mainVocabResultContainer) mainVocabResultContainer.innerHTML = errHtml;
     }
   } catch (e) {
     clearTimeout(timeoutId);
     const msg = e.name === 'AbortError'
       ? 'Hết thời gian chờ AI phản hồi (quá 9s). Vui lòng thử lại.'
       : e.message;
-    vocabResultContainer.innerHTML = `<p style="color:#f87171; font-size:0.85rem;">Không gọi được API dịch: ${escapeHtml(msg)}</p>`;
+    const errHtml = `<p style="color:#f87171; font-size:0.85rem;">Không gọi được API dịch: ${escapeHtml(msg)}</p>`;
+    if (vocabResultContainer) vocabResultContainer.innerHTML = errHtml;
+    if (mainVocabResultContainer) mainVocabResultContainer.innerHTML = errHtml;
   } finally {
-    vocabLoading.style.display = 'none';
+    if (vocabLoading) vocabLoading.style.display = 'none';
+    if (mainVocabLoading) mainVocabLoading.style.display = 'none';
     if (vocabTranslateBtn) {
       vocabTranslateBtn.disabled = false;
       vocabTranslateBtn.textContent = 'Dịch & Lưu';
     }
+    if (mainVocabTranslateBtn) {
+      mainVocabTranslateBtn.disabled = false;
+      mainVocabTranslateBtn.textContent = 'Dịch & Lưu Vào Sổ';
+    }
     if (vocabInput) {
       vocabInput.disabled = false;
-      vocabInput.focus();
+    }
+    if (mainVocabInput) {
+      mainVocabInput.disabled = false;
+      mainVocabInput.focus();
     }
   }
 }
@@ -1205,15 +1513,15 @@ function renderVocabResult(item) {
   const wordJsSafe = item.word.replace(/'/g, "\\'");
   const safeId = item.word.toLowerCase().replace(/[^a-z0-9]/g, '_');
 
-  vocabResultContainer.innerHTML = `
+  const html = `
     <div class="vocab-result-card">
       <div class="vocab-word-head">
         <div>
           <span class="vocab-word-title">${escapeHtml(item.word)}</span>
           <span class="vocab-phonetic">${escapeHtml(item.phonetic || '')}</span>
-          ${item.part_of_speech ? `<span class="badge" style="font-size:0.7rem; background:#0f172a; color:#38bdf8; margin-left:6px;">${escapeHtml(item.part_of_speech)}</span>` : ''}
+          ${item.part_of_speech ? `<span class="badge" style="font-size:0.75rem; background:#0f172a; color:#38bdf8; margin-left:6px;">${escapeHtml(item.part_of_speech)}</span>` : ''}
         </div>
-        <button class="btn-sm" onclick="playTTS('${wordJsSafe}')">🔊 Nghe</button>
+        <button class="btn-sm" onclick="playTTS('${wordJsSafe}', this)">🔊 Nghe</button>
       </div>
       <div class="vocab-meaning">🇻🇳 ${escapeHtml(item.vietnamese || '')}</div>
       <div class="vocab-context">💡 <strong>Bối cảnh ICOIN:</strong> ${escapeHtml(item.technical_context || '')}</div>
@@ -1225,7 +1533,7 @@ function renderVocabResult(item) {
           🎙️ Kiểm tra Phát âm (AI Chấm điểm ≥ 80% để cho qua):
         </div>
         <div class="speech-test-actions">
-          <button class="btn-sm" onclick="playTTS('${wordJsSafe}')">🔊 Nghe mẫu</button>
+          <button class="btn-sm" onclick="playTTS('${wordJsSafe}', this)">🔊 Nghe mẫu</button>
           <button class="btn-record-word" id="btn-speech-${safeId}" onclick="window.testWordPronunciation('${wordJsSafe}', 'btn-speech-${safeId}', 'speech-res-${safeId}')">
             🎙️ Bấm để đọc từ này
           </button>
@@ -1236,6 +1544,9 @@ function renderVocabResult(item) {
       ${srsBadge}
     </div>
   `;
+
+  if (vocabResultContainer) vocabResultContainer.innerHTML = html;
+  if (mainVocabResultContainer) mainVocabResultContainer.innerHTML = html;
 }
 
 async function loadDueVocab() {
@@ -1336,9 +1647,7 @@ function renderDueVocabList() {
           🗣️ Hãy đọc to từ trên theo phiên âm chuẩn (Cần đạt ≥ 80%):
         </div>
         <div class="speech-test-actions">
-          <button class="btn-record-word" id="btn-due-speech-${safeId}" onclick="window.testWordPronunciation('${wordJsSafe}', 'btn-due-speech-${safeId}', 'due-speech-res-${safeId}', (score) => {
-            setTimeout(() => gradeReview('${wordJsSafe}', 5, '${safeId}'), 1200);
-          })">
+          <button class="btn-record-word" id="btn-due-speech-${safeId}" onclick="window.testWordPronunciation('${wordJsSafe}', 'btn-due-speech-${safeId}', 'due-speech-res-${safeId}')">
             🎙️ Bấm & Đọc để kiểm tra phát âm
           </button>
         </div>
@@ -1351,12 +1660,14 @@ function renderDueVocabList() {
       <div id="answer-box-${safeId}" style="display:none;" class="srs-answer-reveal">
         <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;">
           <strong>Đáp án:</strong> 
-          <span style="color:#38bdf8; font-weight:700; font-size:1.02rem;">${escapeHtml(item.word)}</span>
+          <span style="color:#38bdf8; font-weight:700; font-size:1.02rem;" class="clickable-term" onclick="window.quickTranslateWord('${wordJsSafe}', event)">${escapeHtml(item.word)}</span>
           ${item.phonetic ? `<span class="speech-target-ipa">${escapeHtml(item.phonetic)}</span>` : ''}
+          <button type="button" class="btn-sm" style="padding:2px 8px; font-size:0.72rem;" onclick="playTTS('${wordJsSafe}', this)">🔊 Nghe</button>
         </div>
-        <div style="margin-top:6px; font-size:0.86rem; color:#f1f5f9; font-weight:500;">🇻🇳 ${escapeHtml(item.vietnamese || '')}</div>
+        <div style="margin-top:6px; font-size:0.86rem; color:#f1f5f9; font-weight:500;">🇻🇳 <strong>Nghĩa:</strong> ${escapeHtml(item.vietnamese || '')}</div>
         ${item.technical_context ? `<div style="margin-top:4px; font-size:0.78rem; color:#94a3b8; line-height:1.4;">💡 <strong>Bối cảnh:</strong> ${escapeHtml(item.technical_context)}</div>` : ''}
-        <div style="margin-top:8px; font-size:0.78rem;">Đánh giá mức độ nhớ của bạn:</div>
+        ${item.example_sentence ? `<div style="margin-top:4px; font-size:0.78rem; color:#cbd5e1; line-height:1.4;">📝 <strong>Ví dụ:</strong> <em>"${escapeHtml(item.example_sentence)}"</em></div>` : ''}
+        <div style="margin-top:10px; font-size:0.78rem; color:#cbd5e1;">Đánh giá mức độ nhớ của bạn:</div>
         <div class="srs-rating-buttons">
           <button class="btn-rate btn-rate-hard" onclick="gradeReview('${wordJsSafe}', 1, '${safeId}')">Khó / Quên (Nhắc lại mai)</button>
           <button class="btn-rate btn-rate-good" onclick="gradeReview('${wordJsSafe}', 3, '${safeId}')">Nhớ được (Tiến độ chuẩn)</button>
@@ -1587,6 +1898,27 @@ function playWebSpeechSynthesis(text, onComplete) {
   }
 }
 
+function buildWordMeaningHtml(item, targetWord) {
+  const vn = item ? (item.vietnamese || '') : '';
+  const ipa = item ? (item.phonetic || '') : '';
+  const ctx = item ? (item.technical_context || '') : '';
+  const ex = item ? (item.example_sentence || '') : '';
+  const wordJsSafe = targetWord.replace(/'/g, "\\'");
+  
+  return `
+    <div class="srs-auto-meaning-box">
+      <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;">
+        <span class="srs-meaning-word clickable-term" onclick="window.quickTranslateWord('${wordJsSafe}', event)">${escapeHtml(targetWord)}</span>
+        ${ipa ? `<span class="speech-target-ipa">${escapeHtml(ipa)}</span>` : ''}
+        <button type="button" class="btn-sm" style="padding:2px 8px; font-size:0.72rem;" onclick="playTTS('${wordJsSafe}', this)">🔊 Nghe</button>
+      </div>
+      <div class="srs-meaning-vi">🇻🇳 <strong>Nghĩa:</strong> ${escapeHtml(vn || 'Đang cập nhật')}</div>
+      ${ctx ? `<div class="srs-meaning-ctx">💡 <strong>Bối cảnh ICOIN:</strong> ${escapeHtml(ctx)}</div>` : ''}
+      ${ex ? `<div class="srs-meaning-ex">📝 <strong>Ví dụ:</strong> <em>"${escapeHtml(ex)}"</em></div>` : ''}
+    </div>
+  `;
+}
+
 // Pronunciation test with intelligent iOS / HTTP Fallback
 window.testWordPronunciation = function(targetWord, btnId, resultId, onPassCallback) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1703,6 +2035,13 @@ window.testWordPronunciation = function(targetWord, btnId, resultId, onPassCallb
         btn.textContent = '🎙️ Đọc lại từ này';
       }
 
+      // Automatically reveal the answer box so user can view all answers
+      if (typeof window.revealAnswer === 'function') {
+        window.revealAnswer(safeId);
+      }
+
+      const meaningHtml = buildWordMeaningHtml(matchedItem, targetWord);
+
       if (resultEl) {
         resultEl.innerHTML = `
           <div class="speech-score-badge ${isPass ? 'pass' : 'fail'}">
@@ -1710,17 +2049,28 @@ window.testWordPronunciation = function(targetWord, btnId, resultId, onPassCallb
           </div>
           <div class="speech-feedback-text">
             ${isPass 
-              ? `🎉 Tuyệt vời! Bạn đã phát âm chính xác từ "<strong>${escapeHtml(targetWord)}</strong>" ${phonetic ? `<span class="speech-target-ipa" style="font-size:0.75rem;">${escapeHtml(phonetic)}</span>` : ''}. Đã cho qua!` 
+              ? `🎉 Tuyệt vời! Bạn đã phát âm chính xác từ "<strong>${escapeHtml(targetWord)}</strong>" ${phonetic ? `<span class="speech-target-ipa" style="font-size:0.75rem;">${escapeHtml(phonetic)}</span>` : ''}.` 
               : `Máy nhận được: "<em>${escapeHtml(bestTranscript)}</em>" (Từ chuẩn: "<strong>${escapeHtml(targetWord)}</strong>" ${phonetic ? `<span class="speech-target-ipa" style="font-size:0.75rem;">${escapeHtml(phonetic)}</span>` : ''}). Hãy nghe lại mẫu và thử lại!`
             }
           </div>
-          ${!isPass ? `
-            <div style="margin-top:6px;">
-              <button type="button" class="btn-sm" style="background:#334155; font-size:0.72rem; padding:2px 8px;" onclick="window.confirmPronunciationPass('${targetWord.replace(/'/g, "\\'")}', '${resultId}', '${safeId}', ${onPassCallback ? 'true' : 'false'})">
+          ${meaningHtml}
+          ${isPass ? `
+            <div class="srs-pass-action-row">
+              <button type="button" class="btn-sm btn-rate-easy" style="padding:6px 14px; font-weight:600;" onclick="window.gradeReview('${targetWord.replace(/'/g, "\\'")}', 5, '${safeId}')">
+                Tiếp tục sang từ tiếp theo ➔
+              </button>
+              <span style="font-size:0.75rem; color:#94a3b8; align-self:center;">(Hoặc chọn mức nhớ ở hộp đáp án bên dưới)</span>
+            </div>
+          ` : `
+            <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+              <button type="button" class="btn-sm btn-rate-easy" style="font-size:0.75rem; padding:4px 10px;" onclick="window.confirmPronunciationPass('${targetWord.replace(/'/g, "\\'")}', '${resultId}', '${safeId}', ${onPassCallback ? 'true' : 'false'})">
                 Châm chước & Cho qua
               </button>
+              <button type="button" class="btn-sm" style="background:#1e293b; border:1px solid #475569; font-size:0.75rem; padding:4px 10px;" onclick="window.revealAnswer('${safeId}')">
+                👁️ Xem trước nghĩa & đáp án
+              </button>
             </div>
-          ` : ''}
+          `}
         `;
       }
 
@@ -1760,18 +2110,31 @@ window.confirmPronunciationPass = function(word, resultId, safeId, hasCallback) 
   const matched = (state.dueVocab || []).find(v => v.word.toLowerCase() === word.toLowerCase()) ||
                   (state.allVocab || []).find(v => v.word.toLowerCase() === word.toLowerCase());
   const phonetic = matched ? matched.phonetic : '';
+  const targetId = safeId || word.toLowerCase().replace(/[^a-z0-9]/g, '_');
+
+  if (typeof window.revealAnswer === 'function') {
+    window.revealAnswer(targetId);
+  }
+
+  const meaningHtml = buildWordMeaningHtml(matched, word);
+
   if (resultEl) {
     resultEl.innerHTML = `
       <div class="speech-score-badge pass">
         🟢 Đã xác nhận đạt chuẩn: 100%
       </div>
       <div class="speech-feedback-text">
-        🎉 Tuyệt vời! Bạn đã tự tin phát âm chuẩn từ "<strong>${escapeHtml(word)}</strong>" ${phonetic ? `<span class="speech-target-ipa" style="font-size:0.75rem;">${escapeHtml(phonetic)}</span>` : ''}. Đã cho qua!
+        🎉 Tuyệt vời! Bạn đã tự tin phát âm chuẩn từ "<strong>${escapeHtml(word)}</strong>" ${phonetic ? `<span class="speech-target-ipa" style="font-size:0.75rem;">${escapeHtml(phonetic)}</span>` : ''}.
+      </div>
+      ${meaningHtml}
+      <div class="srs-pass-action-row">
+        <button type="button" class="btn-sm btn-rate-easy" style="padding:6px 14px; font-weight:600;" onclick="window.gradeReview('${word.replace(/'/g, "\\'")}', 5, '${targetId}')">
+          Tiếp tục sang từ tiếp theo ➔
+        </button>
+        <span style="font-size:0.75rem; color:#94a3b8; align-self:center;">(Hoặc chọn mức nhớ ở hộp đáp án bên dưới)</span>
       </div>
     `;
   }
-  const targetId = safeId || word.toLowerCase().replace(/[^a-z0-9]/g, '_');
-  setTimeout(() => window.gradeReview(word, 5, targetId), 1000);
 };
 
 window.toggleTypingFallback = function(safeId) {

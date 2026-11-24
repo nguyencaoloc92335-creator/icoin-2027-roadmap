@@ -1717,40 +1717,263 @@ h1 {
 @media (max-width: 768px) {
   .main-tabs-nav {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
-    padding-bottom: 10px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    padding-bottom: 8px;
     overflow-x: visible;
   }
   .main-nav-btn {
-    padding: 10px 4px;
-    font-size: 0.78rem;
+    padding: 8px 2px;
+    font-size: 0.72rem;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
     text-align: center;
     justify-content: center;
     white-space: normal;
     border-radius: 8px;
   }
   .main-nav-btn .tab-icon {
-    font-size: 1.25rem;
+    font-size: 1.15rem;
   }
   .main-nav-btn .tab-title-text {
-    font-size: 0.75rem;
-    line-height: 1.25;
+    font-size: 0.7rem;
+    line-height: 1.2;
+    word-break: break-word;
   }
   .tab-red-dot {
     position: absolute;
-    top: 6px;
-    right: 8px;
+    top: 4px;
+    right: 4px;
     margin-left: 0;
   }
   .tab-badge-count {
     position: absolute;
-    top: 4px;
-    right: 6px;
+    top: 2px;
+    right: 3px;
     margin-left: 0;
-    font-size: 0.7rem;
-    padding: 1px 5px;
+    font-size: 0.65rem;
+    padding: 1px 4px;
   }
+}
+
+/* ====================================================
+   QUICK FLOATING WORD TRANSLATION POPOVER
+   ==================================================== */
+.quick-word-popover {
+  position: fixed;
+  z-index: 999999;
+  background: #0f172a;
+  border: 1px solid #38bdf8;
+  border-radius: 10px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), 0 0 16px rgba(56, 189, 248, 0.2);
+  width: 320px;
+  max-width: 90vw;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: auto;
+}
+
+.quick-word-popover.hidden {
+  display: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.popover-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.popover-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(30, 41, 59, 0.9);
+  border-bottom: 1px solid #334155;
+  border-top-left-radius: 9px;
+  border-top-right-radius: 9px;
+}
+
+.popover-word {
+  color: #38bdf8;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.popover-ipa {
+  color: #fbbf24;
+  font-size: 0.8rem;
+  font-family: monospace;
+}
+
+.popover-btn-icon {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.popover-btn-icon:hover {
+  color: #fff;
+  background: #334155;
+}
+
+.popover-body {
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  color: #f1f5f9;
+  line-height: 1.45;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.popover-meaning {
+  font-weight: 600;
+  color: #34d399;
+  margin-bottom: 4px;
+}
+
+.popover-context {
+  color: #94a3b8;
+  font-size: 0.78rem;
+  margin-top: 4px;
+}
+
+.popover-loading {
+  color: #38bdf8;
+  font-size: 0.8rem;
+  text-align: center;
+  padding: 8px 0;
+}
+
+.popover-footer {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(15, 23, 42, 0.95);
+  border-top: 1px solid rgba(51, 65, 85, 0.6);
+  border-bottom-left-radius: 9px;
+  border-bottom-right-radius: 9px;
+}
+
+.popover-save-btn {
+  flex: 1;
+  background: linear-gradient(135deg, #0284c7, #06b6d4);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.popover-save-btn:hover {
+  opacity: 0.9;
+}
+
+.popover-tab-btn {
+  background: #1e293b;
+  color: #38bdf8;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.popover-tab-btn:hover {
+  background: #334155;
+  color: #fff;
+}
+
+/* ====================================================
+   SRS AUTO-REVEALED MEANING AFTER READING
+   ==================================================== */
+.srs-auto-meaning-box {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid #38bdf8;
+  border-radius: 8px;
+  animation: fadeInMeaning 0.3s ease-out;
+}
+
+@keyframes fadeInMeaning {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.srs-meaning-word {
+  color: #38bdf8;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.srs-meaning-vi {
+  font-size: 0.92rem;
+  color: #f1f5f9;
+  font-weight: 600;
+  margin: 4px 0;
+}
+
+.srs-meaning-ctx {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
+.srs-meaning-ex {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
+.srs-pass-action-row {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid rgba(51, 65, 85, 0.6);
+}
+
+.clickable-term {
+  cursor: pointer;
+  text-decoration: underline dotted #38bdf8;
+  transition: all 0.15s ease;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+.clickable-term:hover {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border-radius: 3px;
+}
+
+/* Enable selectable text everywhere in review, options, and answer box */
+.srs-quiz-box, 
+.srs-prompt, 
+.srs-options-list, 
+.srs-opt-btn, 
+.srs-answer-reveal, 
+.speech-test-card, 
+.srs-auto-meaning-box,
+.srs-meaning-word,
+.srs-meaning-vi,
+.srs-meaning-ctx,
+.srs-meaning-ex {
+  user-select: text !important;
+  -webkit-user-select: text !important;
 }
