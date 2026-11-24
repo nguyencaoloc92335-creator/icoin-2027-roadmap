@@ -1051,26 +1051,38 @@ function renderDueVocabList() {
       
       <!-- Speech Pronunciation Test in Review (>= 80% to pass) -->
       <div class="speech-test-card" style="margin-top: 8px;">
-        <div class="speech-test-title">
-          🗣️ Đọc to từ vựng tiếng Anh (Cần đạt ≥ 80% để cho qua):
+        <div class="speech-test-word-row">
+          <div class="speech-target-word-group">
+            <span class="speech-target-word">${safeWord}</span>
+            ${item.phonetic ? `<span class="speech-target-ipa">${escapeHtml(item.phonetic)}</span>` : ''}
+          </div>
+          <button class="btn-sm" onclick="playTTS('${wordJsSafe}', this)" title="Nghe mẫu phát âm chuẩn">🔊 Nghe mẫu</button>
+        </div>
+
+        <div class="speech-test-title" style="margin-top: 4px;">
+          🗣️ Hãy đọc to từ trên theo phiên âm chuẩn (Cần đạt ≥ 80%):
         </div>
         <div class="speech-test-actions">
-          <button class="btn-sm" onclick="playTTS('${wordJsSafe}', this)">🔊 Nghe mẫu</button>
           <button class="btn-record-word" id="btn-due-speech-${safeId}" onclick="window.testWordPronunciation('${wordJsSafe}', 'btn-due-speech-${safeId}', 'due-speech-res-${safeId}', (score) => {
             setTimeout(() => gradeReview('${wordJsSafe}', 5, '${safeId}'), 1200);
           })">
-            🎙️ Phát âm để kiểm tra
+            🎙️ Bấm & Đọc để kiểm tra phát âm
           </button>
         </div>
         <div id="due-speech-res-${safeId}"></div>
       </div>
 
       <button class="btn-sm" id="btn-reveal-${safeId}" onclick="revealAnswer('${safeId}')">
-        👁️ Xem đáp án
+        👁️ Xem đáp án & nghĩa tiếng Việt
       </button>
       <div id="answer-box-${safeId}" style="display:none;" class="srs-answer-reveal">
-        <div><strong>Đáp án:</strong> ${escapeHtml(q.answer || item.word)}</div>
-        <div style="margin-top:4px; font-size:0.8rem; color:#cbd5e1;">${escapeHtml(item.vietnamese || '')}</div>
+        <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;">
+          <strong>Đáp án:</strong> 
+          <span style="color:#38bdf8; font-weight:700; font-size:1.02rem;">${escapeHtml(item.word)}</span>
+          ${item.phonetic ? `<span class="speech-target-ipa">${escapeHtml(item.phonetic)}</span>` : ''}
+        </div>
+        <div style="margin-top:6px; font-size:0.86rem; color:#f1f5f9; font-weight:500;">🇻🇳 ${escapeHtml(item.vietnamese || '')}</div>
+        ${item.technical_context ? `<div style="margin-top:4px; font-size:0.78rem; color:#94a3b8; line-height:1.4;">💡 <strong>Bối cảnh:</strong> ${escapeHtml(item.technical_context)}</div>` : ''}
         <div style="margin-top:8px; font-size:0.78rem;">Đánh giá mức độ nhớ của bạn:</div>
         <div class="srs-rating-buttons">
           <button class="btn-rate btn-rate-hard" onclick="gradeReview('${wordJsSafe}', 1, '${safeId}')">Khó / Quên (Nhắc lại mai)</button>
@@ -1309,6 +1321,10 @@ window.testWordPronunciation = function(targetWord, btnId, resultId, onPassCallb
   const resultEl = document.getElementById(resultId);
   const safeId = targetWord.toLowerCase().replace(/[^a-z0-9]/g, '_');
 
+  const matchedItem = (state.dueVocab || []).find(v => v.word.toLowerCase() === targetWord.toLowerCase()) || 
+                      (state.allVocab || []).find(v => v.word.toLowerCase() === targetWord.toLowerCase());
+  const phonetic = matchedItem ? matchedItem.phonetic : '';
+
   const showFallbackUI = (reason) => {
     if (btn) {
       btn.classList.remove('recording');
@@ -1335,7 +1351,9 @@ window.testWordPronunciation = function(targetWord, btnId, resultId, onPassCallb
             </button>
           </div>
           <div id="typing-fallback-box-${safeId}" style="display:none; padding:8px; background:rgba(15,23,42,0.8); border-radius:6px; border:1px solid #475569;">
-            <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">Hãy gõ lại từ: <strong>${escapeHtml(targetWord)}</strong></div>
+            <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">
+              Hãy gõ lại từ: <strong style="color:#38bdf8;">${escapeHtml(targetWord)}</strong> ${phonetic ? `<span class="speech-target-ipa" style="font-size:0.75rem;">${escapeHtml(phonetic)}</span>` : ''}
+            </div>
             <div style="display:flex; gap:6px;">
               <input type="text" id="typing-fallback-input-${safeId}" placeholder="Gõ từ..." style="flex:1; padding:6px 8px; background:#0f172a; border:1px solid #334155; color:#fff; border-radius:4px; font-size:0.82rem;" />
               <button type="button" class="btn-sm btn-primary" onclick="window.verifyTypingFallback('${targetWord.replace(/'/g, "\\'")}', '${safeId}', '${resultId}', ${onPassCallback ? 'true' : 'false'})">Xác nhận</button>
@@ -1419,8 +1437,8 @@ window.testWordPronunciation = function(targetWord, btnId, resultId, onPassCallb
           </div>
           <div class="speech-feedback-text">
             ${isPass 
-              ? `🎉 Tuyệt vời! Bạn đã phát âm chính xác từ "<strong>${escapeHtml(targetWord)}</strong>". Đã cho qua!` 
-              : `Máy nhận được: "<em>${escapeHtml(bestTranscript)}</em>" (Từ chuẩn: "<strong>${escapeHtml(targetWord)}</strong>"). Hãy nghe lại mẫu và thử lại!`
+              ? `🎉 Tuyệt vời! Bạn đã phát âm chính xác từ "<strong>${escapeHtml(targetWord)}</strong>" ${phonetic ? `<span class="speech-target-ipa" style="font-size:0.75rem;">${escapeHtml(phonetic)}</span>` : ''}. Đã cho qua!` 
+              : `Máy nhận được: "<em>${escapeHtml(bestTranscript)}</em>" (Từ chuẩn: "<strong>${escapeHtml(targetWord)}</strong>" ${phonetic ? `<span class="speech-target-ipa" style="font-size:0.75rem;">${escapeHtml(phonetic)}</span>` : ''}). Hãy nghe lại mẫu và thử lại!`
             }
           </div>
           ${!isPass ? `
@@ -1466,13 +1484,16 @@ window.testWordPronunciation = function(targetWord, btnId, resultId, onPassCallb
 
 window.confirmPronunciationPass = function(word, resultId, safeId, hasCallback) {
   const resultEl = document.getElementById(resultId);
+  const matched = (state.dueVocab || []).find(v => v.word.toLowerCase() === word.toLowerCase()) ||
+                  (state.allVocab || []).find(v => v.word.toLowerCase() === word.toLowerCase());
+  const phonetic = matched ? matched.phonetic : '';
   if (resultEl) {
     resultEl.innerHTML = `
       <div class="speech-score-badge pass">
         🟢 Đã xác nhận đạt chuẩn: 100%
       </div>
       <div class="speech-feedback-text">
-        🎉 Tuyệt vời! Bạn đã tự tin phát âm chuẩn từ "<strong>${escapeHtml(word)}</strong>". Đã cho qua!
+        🎉 Tuyệt vời! Bạn đã tự tin phát âm chuẩn từ "<strong>${escapeHtml(word)}</strong>" ${phonetic ? `<span class="speech-target-ipa" style="font-size:0.75rem;">${escapeHtml(phonetic)}</span>` : ''}. Đã cho qua!
       </div>
     `;
   }
