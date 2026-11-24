@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
   <title>ICOIN 2027 · Lộ trình Tiếng Anh Chuyên Ngành (AI, OWC, OCC, Firmware, IoT)</title>
-  <link rel="stylesheet" href="css/style.css?v=9.0">
+  <link rel="stylesheet" href="css/style.css?v=10.0">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
 </head>
 <body>
@@ -366,6 +367,38 @@
     </div>
   </div>
 
+  <!-- Floating Sticky Lesson Audio Mini-Player (Shown while playing/paused) -->
+  <div id="floatingLessonPlayer" class="floating-lesson-player hidden">
+    <div class="flp-header">
+      <div class="flp-title-wrap">
+        <span class="flp-icon">🎧</span>
+        <strong id="flpTitle" class="flp-title">Bài học</strong>
+        <span id="flpStatus" class="flp-status">Câu 1/1</span>
+      </div>
+      <button type="button" class="popover-btn-icon" onclick="window.stopLessonAudio()" title="Dừng và đóng trình phát">✕</button>
+    </div>
+    <div class="flp-progress-wrap" onclick="window.seekLessonProgress(null, event)">
+      <div class="lap-progress-track">
+        <div class="lap-progress-fill" id="flpProgressFill" style="width: 0%;"></div>
+      </div>
+    </div>
+    <div class="flp-controls-row">
+      <div class="flp-btn-group">
+        <button type="button" class="lap-btn flp-btn-sm" onclick="window.restartLessonAudio()" title="Nghe lại từ đầu">⏮️</button>
+        <button type="button" class="lap-btn flp-btn-sm" onclick="window.rewindLessonAudio()" title="Tua lại 5s / câu trước">⏪ Tua lại</button>
+        <button type="button" class="lap-btn lap-btn-play flp-btn-sm" id="flpPlayBtn" onclick="window.toggleLessonPlayPause()">⏸️ Dừng</button>
+        <button type="button" class="lap-btn flp-btn-sm" onclick="window.nextLessonChunk()" title="Câu tiếp theo">⏩</button>
+      </div>
+      <div class="lap-speed-pills flp-speeds" id="flpSpeedPills">
+        <button type="button" class="lap-speed-btn" data-speed="0.5" onclick="window.setLessonPlaybackSpeed(0.5)">0.5x</button>
+        <button type="button" class="lap-speed-btn" data-speed="0.75" onclick="window.setLessonPlaybackSpeed(0.75)">0.75x</button>
+        <button type="button" class="lap-speed-btn" data-speed="0.9" onclick="window.setLessonPlaybackSpeed(0.9)">0.9x</button>
+        <button type="button" class="lap-speed-btn" data-speed="1" onclick="window.setLessonPlaybackSpeed(1.0)">1.0x</button>
+        <button type="button" class="lap-speed-btn" data-speed="1.25" onclick="window.setLessonPlaybackSpeed(1.25)">1.25x</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Quick Word Translation Popover (Click/Select Any Word In Review/Questions/Answers) -->
   <div id="quickWordPopover" class="quick-word-popover hidden">
     <div class="popover-arrow"></div>
@@ -390,6 +423,6 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=9.0"></script>
+  <script src="js/app.js?v=10.0"></script>
 </body>
 </html>

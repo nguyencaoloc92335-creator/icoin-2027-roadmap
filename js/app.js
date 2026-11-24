@@ -140,6 +140,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   setupEventListeners();
+  updateSpeedButtonsAcrossUI();
   updateCountdown();
   initAuth();
 });
@@ -843,9 +844,12 @@ window.quickTranslateWord = function(word, ev) {
 };
 
 function handleWordClick(e) {
-  // Ignore clicks inside popover, modals, rating buttons, or form editing fields
+  // Ignore clicks inside popover, modals, rating buttons, audio player controls, or form editing fields
   if (e && e.target && e.target.closest && (
     e.target.closest('#quickWordPopover') || 
+    e.target.closest('#floatingLessonPlayer') ||
+    e.target.closest('.lesson-audio-player') ||
+    e.target.closest('.speak-card-play-btn') ||
     e.target.closest('.modal-card') ||
     e.target.closest('.btn-record-word') ||
     e.target.closest('.btn-rate') ||
@@ -1085,11 +1089,29 @@ async function loadDay(dayNum) {
 
 function renderMaterialHtml(task) {
   const m = task.material;
-  if (!m) return '';
+  if (!m) {
+    if (task.items && task.items.length > 0) {
+      const itemsText = task.items.join(' ');
+      if (/[a-zA-Z]{3,}/.test(itemsText)) {
+        const playerId = `lesson-items-${task.id}`;
+        registerLessonPlayer(playerId, `🎧 Bài học #${task.id}`, task.items, { playLabel: '▶️ Nghe nội dung' });
+        return `<div class="task-material-box">
+          <div class="material-title-bar">
+            <span class="material-title">🎧 Nghe hướng dẫn & nội dung bài học</span>
+          </div>
+          ${renderLessonAudioPlayerHtml(playerId)}
+        </div>`;
+      }
+    }
+    return '';
+  }
 
   let body = '';
   if (task.type === 'listening') {
     const audioText = m.audio_text || '';
+    const playerId = `lesson-listen-${task.id}`;
+    registerLessonPlayer(playerId, `🎧 Bài nghe #${task.id}`, audioText, { playLabel: '▶️ Nghe bài' });
+
     const kwHtml = (m.keywords || []).map(k => `
       <div class="keyword-pill"><strong>${escapeHtml(k.term)}:</strong> ${escapeHtml(k.definition)}</div>
     `).join('');
@@ -1097,18 +1119,25 @@ function renderMaterialHtml(task) {
     body = `
       <div class="material-title-bar">
         <span class="material-title">🎧 Kịch bản âm thanh kỹ thuật (Audio Transcript)</span>
-        <button class="btn-sm" onclick="playTTS('${escapeHtml(audioText.replace(/'/g, "\\'"))}')">▶️ Nghe toàn bộ đoạn (TTS)</button>
       </div>
-      <div class="material-passage">${escapeHtml(audioText)}</div>
+      ${renderLessonAudioPlayerHtml(playerId)}
+      <div class="material-passage">${renderHighlightablePassageHtml(playerId) || escapeHtml(audioText)}</div>
       ${kwHtml ? `<div style="font-size:0.78rem; color:#94a3b8; margin-top:6px;">🔑 Từ khóa trọng tâm:</div><div class="material-keywords-list">${kwHtml}</div>` : ''}
       ${m.question ? `<div style="margin-top:8px; font-weight:600; color:#e2e8f0;">❓ Câu hỏi trọng tâm: <span style="color:#38bdf8;">${escapeHtml(m.question)}</span></div>` : ''}
     `;
   } else if (task.type === 'speaking') {
-    const sentences = (m.sample_sentences || []).map((s) => `
-      <div class="speaking-sentence-card">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+    const sampleList = m.sample_sentences || [];
+    const playerId = `lesson-speak-${task.id}`;
+    registerLessonPlayer(playerId, `🗣️ Luyện nói #${task.id}`, sampleList.map(s => s.en || ''), {
+      isSpeakingCards: true,
+      playLabel: '▶️ Nghe tất cả mẫu câu'
+    });
+
+    const sentences = sampleList.map((s, idx) => `
+      <div class="speaking-sentence-card" id="speak-card-${playerId}-${idx}">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
           <div class="speaking-en">"${escapeHtml(s.en)}"</div>
-          <button class="btn-sm" style="padding:2px 8px; font-size:0.75rem;" onclick="playTTS('${escapeHtml(s.en.replace(/'/g, "\\'"))}')">🔊 Nghe</button>
+          <button type="button" class="btn-sm speak-card-play-btn" style="padding:3px 9px; font-size:0.75rem; flex-shrink:0;" onclick="window.playSingleSentenceInPlayer('${playerId}', ${idx})">🔊 Nghe câu này</button>
         </div>
         <div class="speaking-ipa">${escapeHtml(s.ipa || '')}</div>
         <div class="speaking-vi">🇻🇳 ${escapeHtml(s.vi || '')}</div>
@@ -1119,12 +1148,16 @@ function renderMaterialHtml(task) {
       <div class="material-title-bar">
         <span class="material-title">🗣️ Mẫu câu giao tiếp & Shadowing chuyên ngành</span>
       </div>
+      ${renderLessonAudioPlayerHtml(playerId)}
       ${sentences}
       ${m.intonation_tips ? `<div style="font-size:0.78rem; color:#fbbf24; margin-top:6px;">💡 Lưu ý ngữ điệu: ${escapeHtml(m.intonation_tips)}</div>` : ''}
     `;
   } else if (task.type === 'reading') {
     const title = m.datasheet_title || 'Trích đoạn tài liệu kỹ thuật STM32';
     const passage = m.passage || '';
+    const playerId = `lesson-read-${task.id}`;
+    registerLessonPlayer(playerId, `📖 Bài đọc #${task.id}`, passage, { playLabel: '▶️ Nghe bài đọc' });
+
     const vocabList = (m.vocabulary_highlights || []).map(v => `
       <div class="keyword-pill"><strong>${escapeHtml(v.term)}:</strong> ${escapeHtml(v.meaning)}</div>
     `).join('');
@@ -1133,12 +1166,16 @@ function renderMaterialHtml(task) {
       <div class="material-title-bar">
         <span class="material-title">📖 ${escapeHtml(title)}</span>
       </div>
-      <div class="material-passage">${escapeHtml(passage)}</div>
+      ${renderLessonAudioPlayerHtml(playerId)}
+      <div class="material-passage">${renderHighlightablePassageHtml(playerId) || escapeHtml(passage)}</div>
       ${vocabList ? `<div style="font-size:0.78rem; color:#94a3b8; margin-top:6px;">🔍 Thuật ngữ then chốt:</div><div class="material-keywords-list">${vocabList}</div>` : ''}
       ${m.question ? `<div style="margin-top:8px; font-weight:600; color:#e2e8f0;">❓ Yêu cầu đọc hiểu: <span style="color:#38bdf8;">${escapeHtml(m.question)}</span></div>` : ''}
     `;
   } else if (task.type === 'writing') {
     const prompt = m.writing_prompt || '';
+    const playerId = `lesson-write-${task.id}`;
+    registerLessonPlayer(playerId, `✍️ Đề viết #${task.id}`, prompt, { playLabel: '▶️ Nghe đề bài' });
+
     const args = (m.suggested_arguments || []).map(a => `<li>${escapeHtml(a)}</li>`).join('');
     const vocabs = (m.academic_vocabulary || []).map(v => `<span class="badge" style="background:#1e293b; color:#38bdf8; margin-right:4px;">${escapeHtml(v)}</span>`).join('');
 
@@ -1146,6 +1183,7 @@ function renderMaterialHtml(task) {
       <div class="material-title-bar">
         <span class="material-title">✍️ Đề bài & Hướng dẫn Viết chuẩn Hội thảo IEEE / ICOIN</span>
       </div>
+      ${renderLessonAudioPlayerHtml(playerId)}
       <div style="font-weight:600; color:#f1f5f9; margin-bottom:6px;">${escapeHtml(prompt)}</div>
       ${args ? `<div style="font-size:0.8rem; color:#94a3b8;">💡 Gợi ý luận điểm kỹ thuật:</div><ul style="margin:4px 0 8px 16px; font-size:0.82rem; color:#cbd5e1;">${args}</ul>` : ''}
       ${vocabs ? `<div style="font-size:0.78rem; color:#94a3b8;">📚 Từ vựng học thuật nên dùng: ${vocabs}</div>` : ''}
@@ -1160,11 +1198,18 @@ function renderSolutionBox(task, solutionData) {
   if (!sol || (!sol.answer && !sol.detailed_explanation)) return '';
 
   const takeaways = (sol.key_takeaways || []).map(t => `<li class="solution-takeaway-item">${escapeHtml(t)}</li>`).join('');
+  let solPlayerHtml = '';
+  if (sol.answer && task.type !== 'speaking' && /[a-zA-Z]{4,}/.test(sol.answer)) {
+    const solPlayerId = `lesson-sol-${task.id}`;
+    registerLessonPlayer(solPlayerId, `🎯 Đáp án mẫu #${task.id}`, sol.answer, { playLabel: '▶️ Nghe đáp án mẫu' });
+    solPlayerHtml = renderLessonAudioPlayerHtml(solPlayerId);
+  }
 
   return `
     <div class="solution-details-box" id="solution-content-${task.id}">
       <h5>🎯 Đáp án & Lời giải mẫu chuẩn kỹ thuật:</h5>
       <div style="color:#38bdf8; font-weight:500; margin-bottom:8px;">${escapeHtml(sol.answer || '')}</div>
+      ${solPlayerHtml}
       ${sol.detailed_explanation ? `<div style="font-size:0.82rem; color:#cbd5e1; line-height:1.45; margin-bottom:8px;">${escapeHtml(sol.detailed_explanation)}</div>` : ''}
       ${takeaways ? `<div style="font-size:0.8rem; color:#fbbf24; font-weight:600;">📌 Điểm cốt lõi cần ghi nhớ:</div><ul style="margin:4px 0 0 0; padding-left:16px;">${takeaways}</ul>` : ''}
     </div>
@@ -1203,17 +1248,27 @@ function renderEvaluationHtml(evalRes, task) {
          🔒 Lời giải mẫu chỉ tự động mở khóa khi bạn đọc tài liệu và nỗ lực trả lời gần đúng (AI sẽ đánh giá tính chân thật).
        </div>`;
 
+  let improvedPlayerHtml = '';
+  if (evalRes.improved_english) {
+    const ieeePlayerId = `lesson-ieee-${task.id}`;
+    registerLessonPlayer(ieeePlayerId, `📝 Câu chuẩn IEEE #${task.id}`, evalRes.improved_english, { playLabel: '▶️ Nghe câu gợi ý' });
+    improvedPlayerHtml = renderLessonAudioPlayerHtml(ieeePlayerId);
+  }
+
   return `
     <div class="ai-eval-result ${badgeClass}">
       <div class="eval-badge ${badgeClass}">${badgeText}</div>
       <div class="eval-feedback">${escapeHtml(evalRes.feedback || '')}</div>
-      ${evalRes.improved_english ? `<div class="eval-improved-english">📝 <strong>Gợi ý câu chuẩn IEEE:</strong> "${escapeHtml(evalRes.improved_english)}"</div>` : ''}
+      ${evalRes.improved_english ? `<div class="eval-improved-english">📝 <strong>Gợi ý câu chuẩn IEEE:</strong> "${escapeHtml(evalRes.improved_english)}"${improvedPlayerHtml}</div>` : ''}
       ${unlockBtn}
     </div>
   `;
 }
 
 function renderDayContent(day) {
+  resetLessonAudioToIdle();
+  Object.keys(lessonPlayersRegistry).forEach(k => delete lessonPlayersRegistry[k]);
+
   themeTitle.textContent = day.theme || 'Chủ đề chuyên ngành';
   themeDesc.textContent = `Bài học chi tiết gồm các nhiệm vụ rải rác 10-15 phút: Nghe, Nói (Shadowing), Đọc hiểu tài liệu và Viết tóm tắt kỹ thuật.`;
 
@@ -1796,15 +1851,715 @@ function calculatePronunciationScore(spoken, target) {
 }
 
 // ----------------------------------------------------
+// LESSON AUDIO PLAYER ENGINE (Tua chậm, Tua lại, Dừng/Tiếp tục)
+// ----------------------------------------------------
+const LESSON_SPEED_OPTIONS = [
+  { rate: 0.5, label: '0.5x', tag: 'Rất chậm' },
+  { rate: 0.75, label: '0.75x', tag: 'Tua chậm' },
+  { rate: 0.9, label: '0.9x', tag: 'Hơi chậm' },
+  { rate: 1.0, label: '1.0x', tag: 'Chuẩn' },
+  { rate: 1.25, label: '1.25x', tag: 'Nhanh' }
+];
+
+let lessonSpeed = parseFloat(localStorage.getItem('icoin_lesson_speed')) || 1.0;
+if (!LESSON_SPEED_OPTIONS.some(o => Math.abs(o.rate - lessonSpeed) < 0.01)) {
+  lessonSpeed = 1.0;
+}
+
+const lessonPlayersRegistry = {};
+const sharedLessonAudio = new Audio();
+sharedLessonAudio.preload = 'auto';
+
+const lessonAudioSession = {
+  playerId: null,
+  status: 'idle', // 'idle' | 'loading' | 'playing' | 'paused'
+  engine: 'html5', // 'html5' | 'webspeech'
+  chunkIdx: 0,
+  singleChunkOnly: false,
+  playbackToken: 0,
+  audioTime: 0,
+  audioDuration: 0,
+  html5ErrorStreak: 0,
+  preferWebSpeech: false
+};
+
+function splitLongClause(clause, maxLen) {
+  if (clause.length <= maxLen) return [clause];
+  const out = [];
+  let remaining = clause.trim();
+  while (remaining.length > maxLen) {
+    let splitAt = -1;
+    const sub = remaining.slice(0, maxLen + 1);
+    // Prefer splitting at comma, semicolon, colon, or em-dash
+    const punctMatches = [sub.lastIndexOf(', '), sub.lastIndexOf('; '), sub.lastIndexOf(': '), sub.lastIndexOf('—'), sub.lastIndexOf(' - ')];
+    for (const pos of punctMatches) {
+      if (pos > maxLen * 0.35 && pos > splitAt) {
+        splitAt = pos + 1;
+      }
+    }
+    if (splitAt === -1) {
+      splitAt = sub.lastIndexOf(' ');
+    }
+    if (splitAt <= 0) {
+      splitAt = maxLen;
+    }
+    out.push(remaining.slice(0, splitAt).trim());
+    remaining = remaining.slice(splitAt).trim();
+  }
+  if (remaining) out.push(remaining);
+  return out;
+}
+
+function splitIntoTTSChunks(rawText, maxLen = 175) {
+  if (!rawText || typeof rawText !== 'string') return [];
+  const lines = rawText.split(/\n+/);
+  const chunks = [];
+
+  lines.forEach((rawLine, lineIdx) => {
+    const line = rawLine.trim();
+    if (!line) return;
+    // Match sentences without lookbehind for full iOS Safari compatibility
+    const sentences = line.match(/[^.!?]+[.!?]+(?=\s|$)|[^.!?]+$/g) || [line];
+    sentences.forEach((rawSent, sentIdx) => {
+      const sent = rawSent.trim();
+      if (!sent) return;
+      const parts = splitLongClause(sent, maxLen);
+      parts.forEach((part, partIdx) => {
+        chunks.push({
+          text: part,
+          lineBreakBefore: lineIdx > 0 && sentIdx === 0 && partIdx === 0
+        });
+      });
+    });
+  });
+
+  return chunks;
+}
+
+function registerLessonPlayer(playerId, label, rawTextOrList, opts = {}) {
+  let chunks = [];
+  if (Array.isArray(rawTextOrList)) {
+    rawTextOrList.forEach((item) => {
+      const str = typeof item === 'string' ? item : (item && item.en ? item.en : '');
+      const trimmed = str.trim();
+      if (trimmed) {
+        chunks.push({ text: trimmed, lineBreakBefore: false });
+      }
+    });
+  } else {
+    chunks = splitIntoTTSChunks(rawTextOrList, 175);
+  }
+
+  lessonPlayersRegistry[playerId] = {
+    id: playerId,
+    label: label || 'Bài học',
+    chunks,
+    isSpeakingCards: !!opts.isSpeakingCards,
+    playLabel: opts.playLabel || '▶️ Nghe bài'
+  };
+  return lessonPlayersRegistry[playerId];
+}
+
+function renderLessonAudioPlayerHtml(playerId, opts = {}) {
+  const player = lessonPlayersRegistry[playerId];
+  if (!player || !player.chunks || player.chunks.length === 0) return '';
+  const playLabel = opts.playLabel || player.playLabel || '▶️ Nghe bài';
+
+  const speedButtonsHtml = LESSON_SPEED_OPTIONS.map(opt => {
+    const isActive = Math.abs(lessonSpeed - opt.rate) < 0.01;
+    const turtle = opt.rate <= 0.75 ? ' 🐢' : '';
+    return `<button type="button" class="lap-speed-btn ${isActive ? 'active' : ''}" data-speed="${opt.rate}" onclick="window.setLessonPlaybackSpeed(${opt.rate}, '${playerId}')" title="${opt.tag}">${opt.label}${turtle}</button>`;
+  }).join('');
+
+  return `
+    <div class="lesson-audio-player" id="player-box-${playerId}">
+      <div class="lap-top-row">
+        <div class="lap-controls-main">
+          <button type="button" class="lap-btn lap-btn-play" id="lap-play-${playerId}" onclick="window.toggleLessonPlayPause('${playerId}')" title="Nghe / Dừng / Tiếp tục">
+            ${playLabel}
+          </button>
+          <button type="button" class="lap-btn" onclick="window.rewindLessonAudio('${playerId}')" title="Tua lại 5 giây hoặc câu trước">
+            ⏪ Tua lại
+          </button>
+          <button type="button" class="lap-btn" onclick="window.restartLessonAudio('${playerId}')" title="Nghe lại từ đầu">
+            ⏮️ Từ đầu
+          </button>
+          <button type="button" class="lap-btn" onclick="window.nextLessonChunk('${playerId}')" title="Câu tiếp theo">
+            ⏩ Câu sau
+          </button>
+          <button type="button" class="lap-btn lap-btn-stop" id="lap-stop-${playerId}" onclick="window.stopLessonAudio('${playerId}')" style="display:none;" title="Dừng hẳn">
+            ⏹️ Tắt
+          </button>
+        </div>
+        <div class="lap-status-text" id="lap-status-${playerId}">
+          Sẵn sàng (${player.chunks.length} câu) · ${lessonSpeed}x
+        </div>
+      </div>
+      <div class="lap-progress-row" onclick="window.seekLessonProgress('${playerId}', event)" title="Bấm để tua đến đoạn mong muốn">
+        <div class="lap-progress-track">
+          <div class="lap-progress-fill" id="lap-progress-${playerId}" style="width: 0%;"></div>
+        </div>
+      </div>
+      <div class="lap-speed-row">
+        <span class="lap-speed-label">🐢 Tốc độ (Tua chậm / nhanh):</span>
+        <div class="lap-speed-pills">
+          ${speedButtonsHtml}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderHighlightablePassageHtml(playerId) {
+  const player = lessonPlayersRegistry[playerId];
+  if (!player || !player.chunks || player.chunks.length === 0) return '';
+  return player.chunks.map((c, idx) => {
+    const prefix = c.lineBreakBefore ? '\n' : (idx > 0 ? ' ' : '');
+    return `${prefix}<span class="tts-chunk" id="tts-chunk-${playerId}-${idx}">${escapeHtml(c.text)}</span>`;
+  }).join('');
+}
+
+function applyAudioPlaybackRate() {
+  try {
+    sharedLessonAudio.playbackRate = lessonSpeed;
+    sharedLessonAudio.preservesPitch = true;
+    sharedLessonAudio.mozPreservesPitch = true;
+    sharedLessonAudio.webkitPreservesPitch = true;
+  } catch (_) {}
+}
+
+function updateSpeedButtonsAcrossUI() {
+  document.querySelectorAll('.lap-speed-btn').forEach(btn => {
+    const r = parseFloat(btn.dataset.speed);
+    if (Math.abs(r - lessonSpeed) < 0.01) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+}
+
+function updateLessonProgressUI(playerId) {
+  const targetId = playerId || lessonAudioSession.playerId;
+  if (!targetId) return;
+  const player = lessonPlayersRegistry[targetId];
+  if (!player || !player.chunks.length) return;
+
+  const total = player.chunks.length;
+  let pct = 0;
+  if (lessonAudioSession.playerId === targetId && lessonAudioSession.status !== 'idle') {
+    const subRatio = (lessonAudioSession.audioDuration > 0)
+      ? Math.min(1, lessonAudioSession.audioTime / lessonAudioSession.audioDuration)
+      : 0;
+    pct = Math.min(100, Math.max(0, ((lessonAudioSession.chunkIdx + subRatio) / total) * 100));
+  }
+
+  const fillEl = document.getElementById(`lap-progress-${targetId}`);
+  if (fillEl) fillEl.style.width = `${pct.toFixed(1)}%`;
+
+  if (lessonAudioSession.playerId === targetId) {
+    const flpFill = document.getElementById('flpProgressFill');
+    if (flpFill) flpFill.style.width = `${pct.toFixed(1)}%`;
+  }
+}
+
+function clearAllAudioHighlights() {
+  document.querySelectorAll('.tts-chunk-active').forEach(el => el.classList.remove('tts-chunk-active'));
+  document.querySelectorAll('.tts-sentence-active').forEach(el => el.classList.remove('tts-sentence-active'));
+  document.querySelectorAll('.lesson-audio-player.is-active').forEach(el => el.classList.remove('is-active'));
+  document.querySelectorAll('.speak-card-play-btn').forEach(btn => {
+    btn.textContent = '🔊 Nghe câu này';
+    btn.classList.remove('is-playing', 'is-paused');
+  });
+}
+
+function scrollChunkInsidePassage(chunkEl) {
+  if (!chunkEl) return;
+  const passage = chunkEl.closest('.material-passage');
+  if (!passage) return;
+  const cTop = chunkEl.offsetTop - passage.offsetTop;
+  const cBottom = cTop + chunkEl.offsetHeight;
+  const vTop = passage.scrollTop;
+  const vBottom = vTop + passage.clientHeight;
+  if (cTop < vTop + 12 || cBottom > vBottom - 12) {
+    passage.scrollTo({
+      top: Math.max(0, cTop - passage.clientHeight / 3),
+      behavior: 'smooth'
+    });
+  }
+}
+
+function updateAllLessonAudioUIs() {
+  clearAllAudioHighlights();
+  updateSpeedButtonsAcrossUI();
+
+  // Reset all inline player buttons/statuses first
+  Object.keys(lessonPlayersRegistry).forEach(pid => {
+    const player = lessonPlayersRegistry[pid];
+    const playBtn = document.getElementById(`lap-play-${pid}`);
+    const stopBtn = document.getElementById(`lap-stop-${pid}`);
+    const statusEl = document.getElementById(`lap-status-${pid}`);
+    const boxEl = document.getElementById(`player-box-${pid}`);
+
+    if (!playBtn || !statusEl) return;
+
+    if (lessonAudioSession.playerId === pid && lessonAudioSession.status !== 'idle') {
+      if (boxEl) boxEl.classList.add('is-active');
+      if (stopBtn) stopBtn.style.display = 'inline-flex';
+      statusEl.classList.add('is-active');
+
+      const total = player.chunks.length;
+      const num = lessonAudioSession.chunkIdx + 1;
+      const singleTag = lessonAudioSession.singleChunkOnly ? ' (1 câu)' : '';
+      const speedTag = lessonSpeed <= 0.75 ? `${lessonSpeed}x 🐢` : `${lessonSpeed}x`;
+
+      if (lessonAudioSession.status === 'loading') {
+        playBtn.textContent = '⏳ Đang tải...';
+        playBtn.classList.remove('is-playing', 'is-paused');
+        statusEl.textContent = `Đang tải câu ${num}/${total}${singleTag} · ${speedTag}`;
+      } else if (lessonAudioSession.status === 'playing') {
+        playBtn.textContent = '⏸️ Dừng';
+        playBtn.classList.add('is-playing');
+        playBtn.classList.remove('is-paused');
+        statusEl.textContent = `▶️ Câu ${num}/${total}${singleTag} · ${speedTag}`;
+      } else if (lessonAudioSession.status === 'paused') {
+        playBtn.textContent = '▶️ Tiếp tục';
+        playBtn.classList.remove('is-playing');
+        playBtn.classList.add('is-paused');
+        statusEl.textContent = `⏸️ Tạm dừng (Câu ${num}/${total}) · ${speedTag}`;
+      }
+    } else {
+      playBtn.textContent = player.playLabel || '▶️ Nghe bài';
+      playBtn.classList.remove('is-playing', 'is-paused');
+      if (stopBtn) stopBtn.style.display = 'none';
+      statusEl.classList.remove('is-active');
+      statusEl.textContent = `Sẵn sàng (${player.chunks.length} câu) · ${lessonSpeed}x`;
+      const fillEl = document.getElementById(`lap-progress-${pid}`);
+      if (fillEl) fillEl.style.width = '0%';
+    }
+  });
+
+  // Highlight active chunk or speaking card & update floating mini-player
+  const floatingEl = document.getElementById('floatingLessonPlayer');
+  if (lessonAudioSession.playerId && lessonAudioSession.status !== 'idle') {
+    const pid = lessonAudioSession.playerId;
+    const cIdx = lessonAudioSession.chunkIdx;
+    const player = lessonPlayersRegistry[pid];
+
+    const chunkEl = document.getElementById(`tts-chunk-${pid}-${cIdx}`);
+    if (chunkEl) {
+      chunkEl.classList.add('tts-chunk-active');
+      if (lessonAudioSession.status === 'playing') {
+        scrollChunkInsidePassage(chunkEl);
+      }
+    }
+
+    const speakCard = document.getElementById(`speak-card-${pid}-${cIdx}`);
+    if (speakCard) {
+      speakCard.classList.add('tts-sentence-active');
+      const cardBtn = speakCard.querySelector('.speak-card-play-btn');
+      if (cardBtn) {
+        if (lessonAudioSession.status === 'playing') {
+          cardBtn.textContent = '⏸️ Dừng';
+          cardBtn.classList.add('is-playing');
+        } else if (lessonAudioSession.status === 'paused') {
+          cardBtn.textContent = '▶️ Tiếp tục';
+          cardBtn.classList.add('is-paused');
+        } else {
+          cardBtn.textContent = '⏳ Đang tải...';
+        }
+      }
+    }
+
+    updateLessonProgressUI(pid);
+
+    if (floatingEl && player) {
+      floatingEl.classList.remove('hidden');
+      const flpTitle = document.getElementById('flpTitle');
+      const flpStatus = document.getElementById('flpStatus');
+      const flpPlayBtn = document.getElementById('flpPlayBtn');
+      const speedTag = lessonSpeed <= 0.75 ? `${lessonSpeed}x 🐢` : `${lessonSpeed}x`;
+
+      if (flpTitle) flpTitle.textContent = player.label;
+      if (flpStatus) {
+        const stateLabel = lessonAudioSession.status === 'paused' ? 'Tạm dừng' : (lessonAudioSession.status === 'loading' ? 'Đang tải' : 'Đang đọc');
+        flpStatus.textContent = `· Câu ${cIdx + 1}/${player.chunks.length} · ${speedTag} · ${stateLabel}`;
+      }
+      if (flpPlayBtn) {
+        if (lessonAudioSession.status === 'playing') {
+          flpPlayBtn.textContent = '⏸️ Dừng';
+          flpPlayBtn.classList.add('is-playing');
+          flpPlayBtn.classList.remove('is-paused');
+        } else if (lessonAudioSession.status === 'paused') {
+          flpPlayBtn.textContent = '▶️ Tiếp tục';
+          flpPlayBtn.classList.remove('is-playing');
+          flpPlayBtn.classList.add('is-paused');
+        } else {
+          flpPlayBtn.textContent = '⏳ ...';
+          flpPlayBtn.classList.remove('is-playing', 'is-paused');
+        }
+      }
+    }
+  } else if (floatingEl) {
+    floatingEl.classList.add('hidden');
+  }
+}
+
+function resetLessonAudioToIdle() {
+  lessonAudioSession.playbackToken++;
+  try {
+    sharedLessonAudio.pause();
+    sharedLessonAudio.removeAttribute('src');
+    sharedLessonAudio.load();
+  } catch (_) {}
+  try {
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  } catch (_) {}
+
+  lessonAudioSession.playerId = null;
+  lessonAudioSession.status = 'idle';
+  lessonAudioSession.chunkIdx = 0;
+  lessonAudioSession.singleChunkOnly = false;
+  lessonAudioSession.audioTime = 0;
+  lessonAudioSession.audioDuration = 0;
+  updateAllLessonAudioUIs();
+}
+
+function pauseLessonAudioInternal() {
+  if (lessonAudioSession.status !== 'playing' && lessonAudioSession.status !== 'loading') return;
+  lessonAudioSession.status = 'paused';
+  if (lessonAudioSession.engine === 'html5') {
+    try {
+      lessonAudioSession.audioTime = sharedLessonAudio.currentTime || 0;
+      sharedLessonAudio.pause();
+    } catch (_) {}
+  } else {
+    // Invalidate current token so speechSynthesis.cancel() won't advance chunk
+    lessonAudioSession.playbackToken++;
+    try {
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    } catch (_) {}
+  }
+  updateAllLessonAudioUIs();
+}
+
+window.pauseActiveLessonAudioIfPlaying = pauseLessonAudioInternal;
+
+function advanceOrFinishLessonChunk() {
+  const player = lessonPlayersRegistry[lessonAudioSession.playerId];
+  if (!player) {
+    resetLessonAudioToIdle();
+    return;
+  }
+  if (lessonAudioSession.singleChunkOnly || lessonAudioSession.chunkIdx + 1 >= player.chunks.length) {
+    resetLessonAudioToIdle();
+    return;
+  }
+  playLessonChunk(player.id, lessonAudioSession.chunkIdx + 1, { singleChunkOnly: false });
+}
+
+function speakChunkWithWebSpeech(playerId, chunkIdx, token) {
+  const player = lessonPlayersRegistry[playerId];
+  if (!player || !player.chunks[chunkIdx] || lessonAudioSession.playbackToken !== token) return;
+
+  if (!('speechSynthesis' in window)) {
+    resetLessonAudioToIdle();
+    alert('Trình duyệt không hỗ trợ phát âm thanh TTS.');
+    return;
+  }
+
+  try {
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
+    const chunkText = player.chunks[chunkIdx].text.replace(/\s+/g, ' ').trim();
+    const utter = new SpeechSynthesisUtterance(chunkText);
+    window._activeLessonUtterance = utter;
+    utter.lang = 'en-US';
+    utter.rate = lessonSpeed;
+
+    const voices = window.speechSynthesis.getVoices();
+    if (voices && voices.length > 0) {
+      const enVoice = voices.find(v => v.lang && (v.lang === 'en-US' || v.lang.startsWith('en')));
+      if (enVoice) utter.voice = enVoice;
+    }
+
+    lessonAudioSession.engine = 'webspeech';
+    lessonAudioSession.status = 'playing';
+    updateAllLessonAudioUIs();
+
+    utter.onend = () => {
+      if (lessonAudioSession.playbackToken !== token) return;
+      advanceOrFinishLessonChunk();
+    };
+    utter.onerror = () => {
+      if (lessonAudioSession.playbackToken !== token) return;
+      resetLessonAudioToIdle();
+    };
+
+    window.speechSynthesis.speak(utter);
+  } catch (e) {
+    console.warn('Lesson Web Speech error:', e);
+    if (lessonAudioSession.playbackToken === token) {
+      resetLessonAudioToIdle();
+    }
+  }
+}
+
+function playLessonChunk(playerId, chunkIdx, opts = {}) {
+  const player = lessonPlayersRegistry[playerId];
+  if (!player || !player.chunks || player.chunks.length === 0) return;
+
+  // Stop any single-word TTS
+  if (currentPlayingAudio) {
+    try {
+      currentPlayingAudio.pause();
+      currentPlayingAudio.currentTime = 0;
+    } catch (_) {}
+    currentPlayingAudio = null;
+  }
+  try {
+    if ('speechSynthesis' in window && (window.speechSynthesis.speaking || window.speechSynthesis.pending)) {
+      window.speechSynthesis.cancel();
+    }
+  } catch (_) {}
+
+  const token = ++lessonAudioSession.playbackToken;
+  lessonAudioSession.playerId = playerId;
+  lessonAudioSession.chunkIdx = Math.max(0, Math.min(chunkIdx, player.chunks.length - 1));
+  lessonAudioSession.singleChunkOnly = !!opts.singleChunkOnly;
+  lessonAudioSession.status = 'loading';
+  lessonAudioSession.audioTime = 0;
+  lessonAudioSession.audioDuration = 0;
+
+  updateAllLessonAudioUIs();
+
+  if (opts.forceWebSpeech || lessonAudioSession.preferWebSpeech) {
+    speakChunkWithWebSpeech(playerId, lessonAudioSession.chunkIdx, token);
+    return;
+  }
+
+  const chunkText = player.chunks[lessonAudioSession.chunkIdx].text.replace(/\s+/g, ' ').trim();
+  const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=${encodeURIComponent(chunkText)}`;
+
+  lessonAudioSession.engine = 'html5';
+  sharedLessonAudio.onloadedmetadata = () => {
+    if (lessonAudioSession.playbackToken !== token) return;
+    applyAudioPlaybackRate();
+    lessonAudioSession.audioDuration = sharedLessonAudio.duration || 0;
+  };
+  sharedLessonAudio.onplaying = () => {
+    if (lessonAudioSession.playbackToken !== token) return;
+    applyAudioPlaybackRate();
+    lessonAudioSession.html5ErrorStreak = 0;
+    lessonAudioSession.status = 'playing';
+    updateAllLessonAudioUIs();
+  };
+  sharedLessonAudio.ontimeupdate = () => {
+    if (lessonAudioSession.playbackToken !== token) return;
+    lessonAudioSession.audioTime = sharedLessonAudio.currentTime || 0;
+    lessonAudioSession.audioDuration = sharedLessonAudio.duration || 0;
+    updateLessonProgressUI(playerId);
+  };
+  sharedLessonAudio.onended = () => {
+    if (lessonAudioSession.playbackToken !== token) return;
+    advanceOrFinishLessonChunk();
+  };
+  sharedLessonAudio.onerror = () => {
+    if (lessonAudioSession.playbackToken !== token) return;
+    lessonAudioSession.html5ErrorStreak++;
+    if (lessonAudioSession.html5ErrorStreak >= 2) {
+      lessonAudioSession.preferWebSpeech = true;
+    }
+    speakChunkWithWebSpeech(playerId, lessonAudioSession.chunkIdx, token);
+  };
+
+  try {
+    sharedLessonAudio.src = audioUrl;
+    applyAudioPlaybackRate();
+    const playPromise = sharedLessonAudio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((err) => {
+        if (lessonAudioSession.playbackToken !== token) return;
+        console.warn('Lesson HTML5 Audio blocked/failed, switching to Web Speech:', err);
+        lessonAudioSession.html5ErrorStreak++;
+        if (lessonAudioSession.html5ErrorStreak >= 2) {
+          lessonAudioSession.preferWebSpeech = true;
+        }
+        speakChunkWithWebSpeech(playerId, lessonAudioSession.chunkIdx, token);
+      });
+    }
+  } catch (_) {
+    if (lessonAudioSession.playbackToken === token) {
+      speakChunkWithWebSpeech(playerId, lessonAudioSession.chunkIdx, token);
+    }
+  }
+}
+
+window.toggleLessonPlayPause = function(playerId) {
+  const targetId = playerId || lessonAudioSession.playerId;
+  if (!targetId) return;
+
+  if (lessonAudioSession.playerId !== targetId || lessonAudioSession.status === 'idle') {
+    playLessonChunk(targetId, 0, { singleChunkOnly: false });
+    return;
+  }
+
+  if (lessonAudioSession.status === 'playing' || lessonAudioSession.status === 'loading') {
+    pauseLessonAudioInternal();
+    return;
+  }
+
+  if (lessonAudioSession.status === 'paused') {
+    if (lessonAudioSession.engine === 'html5' && sharedLessonAudio.src) {
+      const token = lessonAudioSession.playbackToken;
+      lessonAudioSession.status = 'playing';
+      applyAudioPlaybackRate();
+      updateAllLessonAudioUIs();
+      try {
+        const p = sharedLessonAudio.play();
+        if (p !== undefined) {
+          p.catch(() => {
+            if (lessonAudioSession.playbackToken !== token) return;
+            playLessonChunk(targetId, lessonAudioSession.chunkIdx, {
+              singleChunkOnly: lessonAudioSession.singleChunkOnly,
+              forceWebSpeech: true
+            });
+          });
+        }
+      } catch (_) {
+        playLessonChunk(targetId, lessonAudioSession.chunkIdx, {
+          singleChunkOnly: lessonAudioSession.singleChunkOnly,
+          forceWebSpeech: true
+        });
+      }
+    } else {
+      playLessonChunk(targetId, lessonAudioSession.chunkIdx, {
+        singleChunkOnly: lessonAudioSession.singleChunkOnly,
+        forceWebSpeech: true
+      });
+    }
+  }
+};
+
+window.rewindLessonAudio = function(playerId) {
+  const targetId = playerId || lessonAudioSession.playerId;
+  if (!targetId) return;
+  const player = lessonPlayersRegistry[targetId];
+  if (!player || !player.chunks.length) return;
+
+  if (lessonAudioSession.playerId !== targetId || lessonAudioSession.status === 'idle') {
+    playLessonChunk(targetId, 0, { singleChunkOnly: false });
+    return;
+  }
+
+  if (lessonAudioSession.engine === 'html5' && sharedLessonAudio.src) {
+    const cur = sharedLessonAudio.currentTime || 0;
+    if (cur > 2.2) {
+      sharedLessonAudio.currentTime = Math.max(0, cur - 5.0);
+      lessonAudioSession.audioTime = sharedLessonAudio.currentTime;
+      if (lessonAudioSession.status === 'paused') {
+        lessonAudioSession.status = 'playing';
+        applyAudioPlaybackRate();
+        sharedLessonAudio.play().catch(() => {});
+      }
+      updateAllLessonAudioUIs();
+      return;
+    }
+  }
+
+  const prevIdx = Math.max(0, lessonAudioSession.chunkIdx - 1);
+  playLessonChunk(targetId, prevIdx, { singleChunkOnly: lessonAudioSession.singleChunkOnly });
+};
+
+window.restartLessonAudio = function(playerId) {
+  const targetId = playerId || lessonAudioSession.playerId;
+  if (!targetId) return;
+  playLessonChunk(targetId, 0, { singleChunkOnly: false });
+};
+
+window.nextLessonChunk = function(playerId) {
+  const targetId = playerId || lessonAudioSession.playerId;
+  if (!targetId) return;
+  const player = lessonPlayersRegistry[targetId];
+  if (!player || !player.chunks.length) return;
+
+  if (lessonAudioSession.playerId !== targetId || lessonAudioSession.status === 'idle') {
+    playLessonChunk(targetId, 0, { singleChunkOnly: false });
+    return;
+  }
+  const nextIdx = Math.min(player.chunks.length - 1, lessonAudioSession.chunkIdx + 1);
+  playLessonChunk(targetId, nextIdx, { singleChunkOnly: false });
+};
+
+window.stopLessonAudio = function(playerId) {
+  if (playerId && lessonAudioSession.playerId !== playerId) return;
+  resetLessonAudioToIdle();
+};
+
+window.setLessonPlaybackSpeed = function(rate, playerId) {
+  const numRate = parseFloat(rate);
+  if (!numRate || Number.isNaN(numRate)) return;
+
+  lessonSpeed = numRate;
+  localStorage.setItem('icoin_lesson_speed', String(lessonSpeed));
+  applyAudioPlaybackRate();
+
+  if (lessonAudioSession.status === 'playing' && lessonAudioSession.engine === 'webspeech') {
+    // Re-speak current sentence immediately at new speed
+    playLessonChunk(lessonAudioSession.playerId, lessonAudioSession.chunkIdx, {
+      singleChunkOnly: lessonAudioSession.singleChunkOnly,
+      forceWebSpeech: true
+    });
+  } else {
+    updateAllLessonAudioUIs();
+    if (playerId && lessonAudioSession.playerId !== playerId && lessonAudioSession.status === 'idle') {
+      const statusEl = document.getElementById(`lap-status-${playerId}`);
+      const player = lessonPlayersRegistry[playerId];
+      if (statusEl && player) {
+        statusEl.textContent = `Sẵn sàng (${player.chunks.length} câu) · ${lessonSpeed}x`;
+      }
+    }
+  }
+};
+
+window.seekLessonProgress = function(playerId, ev) {
+  const targetId = playerId || lessonAudioSession.playerId;
+  if (!targetId || !ev || !ev.currentTarget) return;
+  const player = lessonPlayersRegistry[targetId];
+  if (!player || !player.chunks.length) return;
+
+  const rect = ev.currentTarget.getBoundingClientRect();
+  const ratio = Math.min(1, Math.max(0, (ev.clientX - rect.left) / Math.max(1, rect.width)));
+  const targetIdx = Math.min(player.chunks.length - 1, Math.floor(ratio * player.chunks.length));
+  playLessonChunk(targetId, targetIdx, { singleChunkOnly: false });
+};
+
+window.playSingleSentenceInPlayer = function(playerId, chunkIdx) {
+  if (
+    lessonAudioSession.playerId === playerId &&
+    lessonAudioSession.chunkIdx === chunkIdx &&
+    (lessonAudioSession.status === 'playing' || lessonAudioSession.status === 'paused')
+  ) {
+    window.toggleLessonPlayPause(playerId);
+    return;
+  }
+  playLessonChunk(playerId, chunkIdx, { singleChunkOnly: true });
+};
+
+// ----------------------------------------------------
 // PRONUNCIATION TESTING & AUDIO ENGINE (iOS & Cross-Browser Safe)
 // ----------------------------------------------------
 let currentPlayingAudio = null;
 
-// Dual-Engine Audio Player (HTML5 Audio + Web Speech API Fallback)
+// Dual-Engine Audio Player for Single Vocab Words (HTML5 Audio + Web Speech API Fallback)
 window.playTTS = function(text, btnElement) {
   if (!text) return;
 
-  // Stop any currently playing audio
+  // Pause active lesson audio gently so two tracks never overlap
+  pauseLessonAudioInternal();
+
+  // Stop any currently playing word audio
   if (currentPlayingAudio) {
     try {
       currentPlayingAudio.pause();
@@ -1872,6 +2627,7 @@ function playWebSpeechSynthesis(text, onComplete) {
     }
 
     const utterance = new SpeechSynthesisUtterance(text);
+    window._activeWordUtterance = utterance;
     utterance.lang = 'en-US';
     utterance.rate = 0.92;
 
@@ -1921,6 +2677,7 @@ function buildWordMeaningHtml(item, targetWord) {
 
 // Pronunciation test with intelligent iOS / HTTP Fallback
 window.testWordPronunciation = function(targetWord, btnId, resultId, onPassCallback) {
+  pauseLessonAudioInternal();
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const btn = document.getElementById(btnId);
   const resultEl = document.getElementById(resultId);
@@ -2209,6 +2966,7 @@ window.gradeReview = async function(word, score, safeId) {
 
 // Web Speech API: Speech-To-Text (Microphone for Note taking)
 function toggleSpeechRecognition(taskId, micBtn) {
+  pauseLessonAudioInternal();
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
     alert('Trình duyệt của bạn chưa hỗ trợ nhận dạng giọng nói qua mic. Vui lòng gõ câu trả lời vào ô.');
