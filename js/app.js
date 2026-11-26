@@ -125,6 +125,7 @@ const bubbleDueBadge = document.getElementById('bubbleDueBadge');
 const bubbleChatDueCount = document.getElementById('bubbleChatDueCount');
 const scheduleReminderCard = document.getElementById('scheduleReminderCard');
 const scheduleStatusText = document.getElementById('scheduleStatusText');
+const scheduleButlerMoodText = document.getElementById('scheduleButlerMoodText');
 const scheduleDueVocabText = document.getElementById('scheduleDueVocabText');
 const scheduleDueBtnCount = document.getElementById('scheduleDueBtnCount');
 const btnOpenDueVocabNow = document.getElementById('btnOpenDueVocabNow');
@@ -575,6 +576,32 @@ window.updateRedDots = function() {
   }
   if (bubbleChatDueCount) {
     bubbleChatDueCount.textContent = dueCount;
+  }
+
+  // Update Butler Duolingo-style Emotional Mood Indicator
+  if (scheduleButlerMoodText) {
+    if (dueCount === 0 && incompleteLessonTasks === 0 && state.isAuthenticated) {
+      scheduleButlerMoodText.textContent = '😌 Hài lòng & an tâm (Hôm nay đã xong!)';
+      scheduleButlerMoodText.className = 'grid-val active';
+    } else {
+      const h = new Date().getHours();
+      if (h >= 5 && h < 14) {
+        scheduleButlerMoodText.textContent = '😊 Nhẹ nhàng, động viên (Mức 1/5)';
+        scheduleButlerMoodText.className = 'grid-val active';
+      } else if (h >= 14 && h < 17) {
+        scheduleButlerMoodText.textContent = '🥺 Bắt đầu sốt ruột (Mức 2/5)';
+        scheduleButlerMoodText.className = 'grid-val';
+      } else if (h >= 17 && h < 20) {
+        scheduleButlerMoodText.textContent = '😤 Tổn thương & gắt (Mức 3/5)';
+        scheduleButlerMoodText.className = 'grid-val danger';
+      } else if (h >= 20 && h < 22) {
+        scheduleButlerMoodText.textContent = '🚨 Báo động đỏ cực gắt (Mức 4-5/5)';
+        scheduleButlerMoodText.className = 'grid-val danger';
+      } else {
+        scheduleButlerMoodText.textContent = '💀 Tối hậu thư nửa đêm! (Mức 5/5)';
+        scheduleButlerMoodText.className = 'grid-val danger';
+      }
+    }
   }
 };
 
